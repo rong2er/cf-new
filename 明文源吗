@@ -1210,28 +1210,16 @@
     }
 
     async function handleSubscriptionRequest(request, user, url = null) {
-     // ▼▼▼▼▼▼▼▼▼ 替换开始 ▼▼▼▼▼▼▼▼▼
-    if (!url) url = new URL(request.url);
-    const finalLinks = [];
-    const workerDomain = url.hostname;
-    const target = url.searchParams.get('target') || 'base64';
-
-    // 定义添加节点的辅助函数
-    async function addNodesFromList(list) {
-        if (ev) { finalLinks.push(...generateLinksFromSource(list, user, workerDomain)); }
-        if (et) { finalLinks.push(...await generateTrojanLinksFromSource(list, user, workerDomain)); }
-        if (ex) { finalLinks.push(...generateXhttpLinksFromSource(list, user, workerDomain)); }
-    }
-
-    // 仅保留地区检测逻辑（为了后面的优选IP智能匹配），但不生成任何原生节点
-    try {
+        // ✅ 粘贴这段新代码
+        // 仅检测地区，不生成任何原生节点
         if (!currentWorkerRegion) {
-            currentWorkerRegion = await detectWorkerRegion(request);
+            try {
+                currentWorkerRegion = await detectWorkerRegion(request);
+            } catch (e) {
+                currentWorkerRegion = 'SG'; 
+            }
         }
-    } catch (e) {
-        currentWorkerRegion = 'SG'; // 默认给个新加坡，防止报错
-    }
-    // ▲▲▲▲▲▲▲▲▲ 替换结束 ▲▲▲▲▲▲▲▲▲
+
         const hasCustomPreferred = customPreferredIPs.length > 0 || customPreferredDomains.length > 0;
         
         if (disablePreferred) {
