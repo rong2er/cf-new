@@ -8,23 +8,30 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. 拉取你仓库的代码
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # 2. 准备 Node.js 环境
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '16'
 
-      - name: Install Obfuscator
-        run: npm install -g javascript-obfuscator
+      # 3. 安装混淆工具 (这里改用了更稳定的本地安装方式，解决 npm 500 报错问题)
+      - name: Install Dependencies
+        run: |
+          npm config set registry https://registry.npmjs.org/
+          npm install javascript-obfuscator --save-dev
 
-      # 注意：我已经删除了下载步骤，现在直接用你仓库里的文件
-
+      # 4. 执行混淆 (关键步骤)
+      # 输入文件：明文源吗
+      # 输出文件：_worker.js
       - name: Obfuscate Script
         run: |
-          # 这里已修改：使用 "明文源吗" 作为源文件，输出为 "_worker.js"
-          javascript-obfuscator "明文源吗" --output _worker.js \
+          echo "开始混淆..."
+          # 使用 npx 调用本地安装的混淆器，文件名加引号防止中文报错
+          npx javascript-obfuscator "明文源吗" --output _worker.js \
           --compact true \
           --control-flow-flattening true \
           --control-flow-flattening-threshold 1 \
@@ -37,12 +44,19 @@ jobs:
           --string-array-threshold 1 \
           --unicode-escape-sequence true \
           --disable-console-output true
+          echo "混淆完成！"
 
+      # 5. 提交修改回仓库
       - name: Commit and Push
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          # 提交混淆后的 _worker.js
+          
+          # 强制添加 _worker.js，不管它之前存不存在
           git add _worker.js
-          git commit -m "Obfuscated based on local '明文源吗'" || echo "No changes to commit"
+          
+          # 提交信息，如果没有变化则不报错
+          git commit -m "Auto-obfuscated from '明文源吗'" || echo "No changes to commit"
+          
+          # 推送
           git push
