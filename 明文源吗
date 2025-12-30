@@ -2,7 +2,6 @@
 
     let at = '351c9981-04b6-4103-aa4b-864aa9c91469';
     let fallbackAddress = '';
-    let fallbackPort = '443';
     let socks5Config = '';
     let customPreferredIPs = [];
     let customPreferredDomains = [];
@@ -330,17 +329,7 @@
                 
                 const envFallback = getConfigValue('p', env.p || env.P);
                 if (envFallback) {
-                    const fallbackValue = envFallback.toLowerCase();
-                    if (fallbackValue.includes(']:')) {
-                        const lastColonIndex = fallbackValue.lastIndexOf(':');
-                        fallbackPort = fallbackValue.slice(lastColonIndex + 1);
-                        fallbackAddress = fallbackValue.slice(0, lastColonIndex);
-                    } else if (!fallbackValue.includes(']:') && !fallbackValue.includes(']')) {
-                        [fallbackAddress, fallbackPort = '443'] = fallbackValue.split(':');
-                    } else {
-                        fallbackAddress = fallbackValue;
-                        fallbackPort = '443';
-                    }
+                    fallbackAddress = envFallback.trim();
                 }
 
                 socks5Config = getConfigValue('s', env.s || env.S) || socks5Config;
@@ -780,9 +769,8 @@
             }
             .matrix-bg {
                 position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                background: linear-gradient(45deg, #000 0%, #001100 50%, #000 100%);
+                background: #000;
                 z-index: -1;
-                animation: bg-pulse 8s ease-in-out infinite;
             }
             @keyframes bg-pulse {
                 0%, 100% { background: linear-gradient(45deg, #000 0%, #001100 50%, #000 100%); }
@@ -790,9 +778,9 @@
             }
             .matrix-rain {
                 position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,0,0.03) 2px, rgba(0,255,0,0.03) 4px);
-                animation: matrix-fall 20s linear infinite;
+                background: transparent;
                 z-index: -1;
+                display: none;
             }
             @keyframes matrix-fall {
                 0% { transform: translateY(-100%); }
@@ -802,12 +790,12 @@
                 position: fixed; top: 0; left: 0; width: 100%; height: 100%;
                 pointer-events: none; z-index: -1;
                 overflow: hidden;
+                display: none;
             }
             .matrix-column {
                 position: absolute; top: -100%; left: 0;
                 color: #00ff00; font-family: "Courier New", monospace;
                 font-size: 14px; line-height: 1.2;
-                animation: matrix-drop 15s linear infinite;
                 text-shadow: 0 0 5px #00ff00;
             }
             @keyframes matrix-drop {
@@ -880,7 +868,7 @@
             }
             .terminal-cursor {
                 display: inline-block; width: 8px; height: 16px;
-                background: #00ff00; animation: blink 1s infinite;
+                background: #00ff00;
                 margin-left: 2px;
             }
             @keyframes blink {
@@ -900,7 +888,6 @@
                 position: fixed; top: 20px; right: 20px;
                 color: #00ff00; font-family: "Courier New", monospace;
                 font-size: 0.8rem; opacity: 0.6;
-                animation: matrix-flicker 3s infinite;
             }
             @keyframes matrix-flicker {
                 0%, 100% { opacity: 0.6; }
@@ -1118,8 +1105,6 @@
                 });
             
             document.addEventListener('DOMContentLoaded', function() {
-                createMatrixRain();
-                
                 const input = document.getElementById('uuidInput');
                 input.focus();
                 input.addEventListener('keypress', function(e) {
@@ -1229,12 +1214,12 @@
         }
 
         if (currentWorkerRegion === 'CUSTOM') {
-            // const nativeList = [{ ip: workerDomain, isp: '原生地址' }];
-            // await addNodesFromList(nativeList);
+            //const nativeList = [{ ip: workerDomain, isp: '原生地址' }];
+            //await addNodesFromList(nativeList);
         } else {
             try {
-                // const nativeList = [{ ip: workerDomain, isp: '原生地址' }];
-                // await addNodesFromList(nativeList);
+                //const nativeList = [{ ip: workerDomain, isp: '原生地址' }];
+                //await addNodesFromList(nativeList);
             } catch (error) {
                 if (!currentWorkerRegion) {
                     currentWorkerRegion = await detectWorkerRegion(request);
@@ -1242,13 +1227,12 @@
                 
                 const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
                 if (bestBackupIP) {
-                    fallbackAddress = bestBackupIP.domain;
-                    fallbackPort = bestBackupIP.port.toString();
-                    const backupList = [{ ip: fallbackAddress, isp: 'ProxyIP-' + currentWorkerRegion }];
+                    fallbackAddress = bestBackupIP.domain + ':' + bestBackupIP.port;
+                    const backupList = [{ ip: bestBackupIP.domain, isp: 'ProxyIP-' + currentWorkerRegion }];
                     await addNodesFromList(backupList);
                 } else {
-                    // const nativeList = [{ ip: workerDomain, isp: '原生地址' }];
-                    // await addNodesFromList(nativeList);
+                    //const nativeList = [{ ip: workerDomain, isp: '原生地址' }];
+                    //await addNodesFromList(nativeList);
                 }
             }
         }
@@ -1288,10 +1272,9 @@
                     
                     const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
                     if (bestBackupIP) {
-                        fallbackAddress = bestBackupIP.domain;
-                        fallbackPort = bestBackupIP.port.toString();
+                        fallbackAddress = bestBackupIP.domain + ':' + bestBackupIP.port;
                         
-                        const backupList = [{ ip: fallbackAddress, isp: 'ProxyIP-' + currentWorkerRegion }];
+                        const backupList = [{ ip: bestBackupIP.domain, isp: 'ProxyIP-' + currentWorkerRegion }];
                             await addNodesFromList(backupList);
                         }
                     }
@@ -1316,10 +1299,9 @@
                 
                 const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
                 if (bestBackupIP) {
-                    fallbackAddress = bestBackupIP.domain;
-                    fallbackPort = bestBackupIP.port.toString();
+                    fallbackAddress = bestBackupIP.domain + ':' + bestBackupIP.port;
                     
-                    const backupList = [{ ip: fallbackAddress, isp: 'ProxyIP-' + currentWorkerRegion }];
+                    const backupList = [{ ip: bestBackupIP.domain, isp: 'ProxyIP-' + currentWorkerRegion }];
                         await addNodesFromList(backupList);
                     }
                 }
@@ -1694,9 +1676,10 @@
                     return;
                 } catch (socksErr) {
                     let backupHost, backupPort;
-                    if (fallbackAddress && fallbackAddress.trim() && fallbackPort) {
-                        backupHost = fallbackAddress;
-                        backupPort = parseInt(fallbackPort, 10) || portNum;
+                    if (fallbackAddress && fallbackAddress.trim()) {
+                        const parsed = parseAddressAndPort(fallbackAddress);
+                        backupHost = parsed.address;
+                        backupPort = parsed.port || portNum;
                     } else {
                         const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
                         backupHost = bestBackupIP ? bestBackupIP.domain : host;
@@ -1714,9 +1697,10 @@
                 }
             } else {
                 let backupHost, backupPort;
-                if (fallbackAddress && fallbackAddress.trim() && fallbackPort) {
-                    backupHost = fallbackAddress;
-                    backupPort = parseInt(fallbackPort, 10) || portNum;
+                if (fallbackAddress && fallbackAddress.trim()) {
+                    const parsed = parseAddressAndPort(fallbackAddress);
+                    backupHost = parsed.address;
+                    backupPort = parsed.port || portNum;
                 } else {
                     const bestBackupIP = await getBestBackupIP(currentWorkerRegion);
                     backupHost = bestBackupIP ? bestBackupIP.domain : host;
@@ -1999,7 +1983,7 @@
                         KR: '🇰🇷 韩国', DE: '🇩🇪 德国', SE: '🇸🇪 瑞典', NL: '🇳🇱 荷兰',
                         FI: '🇫🇮 芬兰', GB: '🇬🇧 英国'
                     },
-                    terminal: '终端 v2.7',
+                    terminal: '终端 v2.9',
                     githubProject: 'GitHub 项目',
                     autoDetectClient: '自动识别',
                 selectionLogicText: '同地区 → 邻近地区 → 其他地区',
@@ -2130,7 +2114,7 @@
                         KR: '🇰🇷 کره جنوبی', DE: '🇩🇪 آلمان', SE: '🇸🇪 سوئد', NL: '🇳🇱 هلند',
                         FI: '🇫🇮 فنلاند', GB: '🇬🇧 بریتانیا'
                     },
-                    terminal: 'ترمینال v2.7',
+                    terminal: 'ترمینال v2.9',
                     githubProject: 'پروژه GitHub',
                     autoDetectClient: 'تشخیص خودکار',
                 selectionLogicText: 'هم‌منطقه → منطقه مجاور → سایر مناطق',
@@ -2177,9 +2161,8 @@
             }
             .matrix-bg {
                 position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                background: linear-gradient(45deg, #000 0%, #001100 50%, #000 100%);
+                background: #000;
                 z-index: -1;
-                animation: bg-pulse 8s ease-in-out infinite;
             }
             @keyframes bg-pulse {
                 0%, 100% { background: linear-gradient(45deg, #000 0%, #001100 50%, #000 100%); }
@@ -2187,9 +2170,9 @@
             }
             .matrix-rain {
                 position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,0,0.03) 2px, rgba(0,255,0,0.03) 4px);
-                animation: matrix-fall 20s linear infinite;
+                background: transparent;
                 z-index: -1;
+                display: none;
             }
             @keyframes matrix-fall {
                 0% { transform: translateY(-100%); }
@@ -2199,12 +2182,12 @@
                 position: fixed; top: 0; left: 0; width: 100%; height: 100%;
                 pointer-events: none; z-index: -1;
                 overflow: hidden;
+                display: none;
             }
             .matrix-column {
                 position: absolute; top: -100%; left: 0;
                 color: #00ff00; font-family: "Courier New", monospace;
                 font-size: 14px; line-height: 1.2;
-                animation: matrix-drop 15s linear infinite;
                 text-shadow: 0 0 5px #00ff00;
             }
             @keyframes matrix-drop {
@@ -2231,13 +2214,8 @@
                 font-size: 3.5rem; font-weight: bold;
                 text-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00, 0 0 30px #00ff00, 0 0 40px #00ff00;
                 margin-bottom: 10px;
-                animation: matrix-glow 1.5s ease-in-out infinite alternate, matrix-pulse 3s ease-in-out infinite;
                 position: relative;
-                background: linear-gradient(45deg, #00ff00, #00aa00, #00ff00);
-                background-size: 200% 200%;
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
+                color: #00ff00;
             }
             @keyframes matrix-glow {
                 from { text-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00, 0 0 30px #00ff00, 0 0 40px #00ff00; }
@@ -2255,7 +2233,6 @@
                 box-shadow: 0 0 30px rgba(0, 255, 0, 0.5), inset 0 0 20px rgba(0, 255, 0, 0.1);
                 position: relative;
                 backdrop-filter: blur(10px);
-                animation: card-glow 4s ease-in-out infinite;
                 box-sizing: border-box;
                 width: 100%;
                 max-width: 100%;
@@ -2267,9 +2244,8 @@
             .card::before {
                 content: ""; position: absolute; top: 0; left: 0;
                 width: 100%; height: 100%;
-                background: linear-gradient(45deg, transparent 49%, #00ff00 50%, transparent 51%);
-                opacity: 0.2; pointer-events: none;
-                animation: scan-line 3s linear infinite;
+                background: none;
+                opacity: 0; pointer-events: none;
             }
             @keyframes scan-line {
                 0% { transform: translateX(-100%); }
@@ -2346,7 +2322,6 @@
                 color: #00ff00; margin-top: 20px; display: none;
                 box-shadow: inset 0 0 15px rgba(0, 255, 0, 0.4), 0 0 20px rgba(0, 255, 0, 0.3);
                 border-radius: 5px;
-                animation: url-glow 2s ease-in-out infinite alternate;
                 position: relative;
                 overflow-wrap: break-word;
                 overflow-x: auto;
@@ -2360,8 +2335,7 @@
             .atob('c3Vic2NyaXB0aW9u')-url::before {
                 content: ""; position: absolute; top: 0; left: -100%;
                 width: 100%; height: 100%;
-                background: linear-gradient(90deg, transparent, rgba(0,255,0,0.1), transparent);
-                animation: url-scan 3s linear infinite;
+                background: none;
             }
             @keyframes url-scan {
                 0% { left: -100%; }
@@ -2371,7 +2345,6 @@
                 position: fixed; top: 20px; right: 20px;
                 color: #00ff00; font-family: "Courier New", monospace;
                 font-size: 0.8rem; opacity: 0.6;
-                animation: matrix-flicker 3s infinite;
             }
             @keyframes matrix-flicker {
                 0%, 100% { opacity: 0.6; }
@@ -2556,8 +2529,24 @@
                                         <button type="button" id="deselectAllResults" style="background: transparent; border: 1px solid #00aa00; padding: 4px 10px; color: #00aa00; font-size: 0.8rem; cursor: pointer;">${t.deselectAll}</button>
                                     </div>
                                 </div>
+                                <div id="cityFilterContainer" style="margin-bottom: 10px; padding: 10px; background: rgba(0, 20, 0, 0.6); border: 1px solid #00aa00; border-radius: 4px; display: none;">
+                                    <div style="margin-bottom: 8px;">
+                                        <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00ff00; font-size: 0.9rem;">
+                                            <input type="radio" name="cityFilterMode" value="all" checked style="margin-right: 6px; width: 16px; height: 16px; cursor: pointer;">
+                                            <span>${isFarsi ? '全部城市' : '全部城市'}</span>
+                                        </label>
+                                        <label style="display: inline-flex; align-items: center; cursor: pointer; color: #00ff00; font-size: 0.9rem; margin-left: 15px;">
+                                            <input type="radio" name="cityFilterMode" value="fastest10" style="margin-right: 6px; width: 16px; height: 16px; cursor: pointer;">
+                                            <span>${isFarsi ? '只选择最快的10个' : '只选择最快的10个'}</span>
+                                        </label>
+                                    </div>
+                                    <div id="cityCheckboxesContainer" style="display: flex; flex-wrap: wrap; gap: 8px; max-height: 80px; overflow-y: auto; padding: 5px;"></div>
+                                </div>
                                 <div id="latencyResultsList" style="background: rgba(0, 0, 0, 0.5); border: 1px solid #004400; border-radius: 4px; padding: 10px;"></div>
-                                <button type="button" id="addSelectedToYx" style="margin-top: 10px; background: rgba(0, 200, 0, 0.3); border: 1px solid #00ff00; padding: 10px 20px; color: #00ff00; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; width: 100%; transition: all 0.3s;">✓ ${t.addSelectedToYx}</button>
+                                <div style="margin-top: 10px; display: flex; gap: 10px;">
+                                    <button type="button" id="overwriteSelectedToYx" style="flex: 1; background: rgba(0, 200, 0, 0.3); border: 1px solid #00ff00; padding: 10px 20px; color: #00ff00; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; transition: all 0.3s;">${isFarsi ? '覆盖添加' : '覆盖添加'}</button>
+                                    <button type="button" id="appendSelectedToYx" style="flex: 1; background: rgba(0, 150, 0, 0.3); border: 1px solid #00aa00; padding: 10px 20px; color: #00aa00; font-family: 'Courier New', monospace; font-weight: bold; cursor: pointer; transition: all 0.3s;">${isFarsi ? '追加添加' : '追加添加'}</button>
+                                </div>
                             </div>
                         </div>
                         
@@ -3681,7 +3670,8 @@
                 const testStatus = document.getElementById('latencyTestStatus');
                 const testResultsDiv = document.getElementById('latencyTestResults');
                 const resultsList = document.getElementById('latencyResultsList');
-                const addSelectedBtn = document.getElementById('addSelectedToYx');
+                const overwriteSelectedBtn = document.getElementById('overwriteSelectedToYx');
+                const appendSelectedBtn = document.getElementById('appendSelectedToYx');
                 const selectAllBtn = document.getElementById('selectAllResults');
                 const deselectAllBtn = document.getElementById('deselectAllResults');
                 const ipSourceSelect = document.getElementById('ipSourceSelect');
@@ -3723,6 +3713,10 @@
                     randomIPCount.addEventListener('input', function() {
                         localStorage.setItem('randomIPCount', this.value);
                     });
+                    // 初始化时，如果默认是隐藏的，则禁用输入框
+                    if (randomCountDiv && randomCountDiv.style.display === 'none') {
+                        randomIPCount.disabled = true;
+                    }
                 }
                 const testThreadsInput = document.getElementById('testThreads');
                 if (testThreadsInput) {
@@ -3734,12 +3728,17 @@
                 }
                 if (ipSourceSelect) {
                     const savedSource = localStorage.getItem('ipSourceSelect');
+                    const currentSource = savedSource || ipSourceSelect.value || 'manual';
                     if (savedSource) {
                         ipSourceSelect.value = savedSource;
-                        manualInputDiv.style.display = savedSource === 'manual' ? 'block' : 'none';
-                        urlFetchDiv.style.display = savedSource === 'urlFetch' ? 'block' : 'none';
-                        cfRandomDiv.style.display = savedSource === 'cfRandom' ? 'block' : 'none';
-                        randomCountDiv.style.display = savedSource === 'cfRandom' ? 'block' : 'none';
+                    }
+                    manualInputDiv.style.display = currentSource === 'manual' ? 'block' : 'none';
+                    urlFetchDiv.style.display = currentSource === 'urlFetch' ? 'block' : 'none';
+                    cfRandomDiv.style.display = currentSource === 'cfRandom' ? 'block' : 'none';
+                    randomCountDiv.style.display = currentSource === 'cfRandom' ? 'block' : 'none';
+                    // 当隐藏时禁用输入框，避免表单验证错误
+                    if (randomIPCount) {
+                        randomIPCount.disabled = currentSource !== 'cfRandom';
                     }
                 }
                 
@@ -3780,6 +3779,10 @@
                         urlFetchDiv.style.display = value === 'urlFetch' ? 'block' : 'none';
                         cfRandomDiv.style.display = value === 'cfRandom' ? 'block' : 'none';
                         randomCountDiv.style.display = value === 'cfRandom' ? 'block' : 'none';
+                        // 当隐藏时禁用输入框，避免表单验证错误
+                        if (randomIPCount) {
+                            randomIPCount.disabled = value !== 'cfRandom';
+                        }
                     });
                 }
                 
@@ -3807,15 +3810,34 @@
                         fetchIPBtn.textContent = '${isFarsi ? 'در حال دریافت...' : '获取中...'}';
                         
                         try {
-                            const response = await fetch(fetchUrl);
-                            if (!response.ok) throw new Error('HTTP ' + response.status);
-                            const text = await response.text();
-                            const lines = text.trim().split('\\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+                            // 支持多个 URL（逗号分隔）以及返回内容中逗号分隔的多个 IP/节点
+                            const urlList = Array.from(new Set(
+                                fetchUrl.split(',').map(u => u.trim()).filter(u => u)
+                            ));
                             
-                            if (lines.length > 0) {
-                                document.getElementById('latencyTestInput').value = lines.join(',');
+                            const allItems = [];
+                            
+                            for (const u of urlList) {
+                                const response = await fetch(u);
+                                if (!response.ok) {
+                                    throw new Error('HTTP ' + response.status + ' @ ' + u);
+                                }
+                                const text = await response.text();
+                                
+                                // 先按行分割，再在每行内按逗号分割，兼容“多行 + 逗号分隔”两种格式
+                                const perUrlItems = text
+                                    .split(/\\r?\\n/)
+                                    .map(l => l.trim())
+                                    .filter(l => l && !l.startsWith('#'))
+                                    .flatMap(l => l.split(',').map(p => p.trim()).filter(p => p));
+                                
+                                allItems.push(...perUrlItems);
+                            }
+                            
+                            if (allItems.length > 0) {
+                                document.getElementById('latencyTestInput').value = allItems.join(',');
                                 manualInputDiv.style.display = 'block';
-                                showStatus('${isFarsi ? 'دریافت شد' : '已获取'} ' + lines.length + ' ${isFarsi ? 'IP' : '个IP'}', 'success');
+                                showStatus('${isFarsi ? 'دریافت شد' : '已获取'} ' + allItems.length + ' ${isFarsi ? 'IP' : '个IP'}', 'success');
                             } else {
                                 showStatus('${isFarsi ? 'داده‌ای یافت نشد' : '未获取到数据'}', 'error');
                             }
@@ -3851,6 +3873,9 @@
                         testResultsDiv.style.display = 'block';
                         resultsList.innerHTML = '';
                         testResults = [];
+                        if (cityFilterContainer) {
+                            cityFilterContainer.style.display = 'none';
+                        }
                         
                         testAbortController = new AbortController();
                         
@@ -3883,33 +3908,38 @@
                             return { host, port, nodeName };
                         }
                         
-                        function renderResult(result, index) {
+                        function renderResult(result, index, shouldShow = true) {
+                            // 只展示在线优选成功的结果，失败/超时的不再显示
+                            if (!result.success) {
+                                return null;
+                            }
+                            
                             const resultItem = document.createElement('div');
                             resultItem.style.cssText = 'display: flex; align-items: center; padding: 8px; border-bottom: 1px solid #003300; gap: 10px;';
+                            resultItem.dataset.index = index;
+                            resultItem.dataset.colo = result.colo || '';
+                            if (!shouldShow) {
+                                resultItem.style.display = 'none';
+                            }
                             
                             const checkbox = document.createElement('input');
                             checkbox.type = 'checkbox';
-                            checkbox.checked = result.success;
-                            checkbox.disabled = !result.success;
+                            checkbox.checked = true;
+                            checkbox.disabled = false;
                             checkbox.dataset.index = index;
                             checkbox.style.cssText = 'width: 18px; height: 18px; cursor: pointer;';
                             
                             const info = document.createElement('div');
                             info.style.cssText = 'flex: 1; font-family: monospace; font-size: 13px;';
                             
-                            if (result.success) {
-                                const coloName = result.colo ? getColoName(result.colo) : '';
-                                const coloDisplay = coloName ? ' <span style="color: #00aaff;">[' + coloName + ']</span>' : '';
-                                info.innerHTML = '<span style="color: #00ff00;">' + result.host + ':' + result.port + '</span>' + coloDisplay + ' <span style="color: #ffff00;">' + result.latency + 'ms</span>';
-                            } else {
-                                const errorDetail = result.error || '${isFarsi ? 'زمان تمام شد' : '超时'}';
-                                const testUrlDisplay = result.testUrl ? '<br><span style="color: #888; font-size: 11px;">URL: ' + result.testUrl + '</span>' : '';
-                                info.innerHTML = '<span style="color: #ff4444;">' + result.host + ':' + result.port + '</span> <span style="color: #ff6666; font-size: 12px;">' + errorDetail + '</span>' + testUrlDisplay;
-                            }
+                            const coloName = result.colo ? getColoName(result.colo) : '';
+                            const coloDisplay = coloName ? ' <span style="color: #00aaff;">[' + coloName + ']</span>' : '';
+                            info.innerHTML = '<span style="color: #00ff00;">' + result.host + ':' + result.port + '</span>' + coloDisplay + ' <span style="color: #ffff00;">' + result.latency + 'ms</span>';
                             
                             resultItem.appendChild(checkbox);
                             resultItem.appendChild(info);
                             resultsList.appendChild(resultItem);
+                            return resultItem;
                         }
                         
                         async function testOne(target) {
@@ -3943,6 +3973,9 @@
                         testStatus.textContent = '${isFarsi ? 'تست کامل شد' : '测试完成'}: ' + completed + '/' + total;
                         startTestBtn.style.display = 'inline-block';
                         stopTestBtn.style.display = 'none';
+                        
+                        // 更新城市选择器
+                        updateCityFilter();
                     });
                 }
                 
@@ -3971,48 +4004,92 @@
                     });
                 }
                 
-                if (addSelectedBtn) {
-                    addSelectedBtn.addEventListener('click', async function() {
-                        const checkboxes = resultsList.querySelectorAll('input[type="checkbox"]:checked');
-                        if (checkboxes.length === 0) {
-                            showStatus('${isFarsi ? 'لطفا حداقل یک مورد انتخاب کنید' : '请至少选择一项'}', 'error');
-                            return;
+                // 获取选中项的通用函数
+                function getSelectedItems() {
+                    const checkboxes = resultsList.querySelectorAll('input[type="checkbox"]:checked');
+                    if (checkboxes.length === 0) {
+                        showStatus('${isFarsi ? 'لطفا حداقل یک مورد انتخاب کنید' : '请至少选择一项'}', 'error');
+                        return null;
+                    }
+                    
+                    const selectedItems = [];
+                    checkboxes.forEach(cb => {
+                        const idx = parseInt(cb.dataset.index);
+                        const result = testResults[idx];
+                        if (result && result.success) {
+                            const coloName = result.colo ? getColoName(result.colo) : result.nodeName;
+                            const itemStr = result.host + ':' + result.port + '#' + coloName;
+                            selectedItems.push(itemStr);
                         }
+                    });
+                    
+                    return selectedItems;
+                }
+                
+                // 覆盖添加
+                if (overwriteSelectedBtn) {
+                    overwriteSelectedBtn.addEventListener('click', async function() {
+                        const selectedItems = getSelectedItems();
+                        if (!selectedItems || selectedItems.length === 0) return;
                         
-                        const selectedItems = [];
-                        checkboxes.forEach(cb => {
-                            const idx = parseInt(cb.dataset.index);
-                            const result = testResults[idx];
-                            if (result && result.success) {
-                                const coloName = result.colo ? getColoName(result.colo) : result.nodeName;
-                                const itemStr = result.host + ':' + result.port + '#' + coloName;
-                                selectedItems.push(itemStr);
-                            }
-                        });
+                        const yxInput = document.getElementById('yx');
+                        const newValue = selectedItems.join(',');
+                        yxInput.value = newValue;
                         
-                        if (selectedItems.length > 0) {
-                            const yxInput = document.getElementById('yx');
-                            const newValue = selectedItems.join(',');
-                            yxInput.value = newValue;
-                            
-                            addSelectedBtn.disabled = true;
-                            addSelectedBtn.textContent = '${isFarsi ? 'در حال ذخیره...' : '保存中...'}';
-                            
-                            try {
-                                const configData = {
-                                    customIP: document.getElementById('customIP').value,
-                                    yx: newValue,
-                                    yxURL: document.getElementById('yxURL').value,
-                                    socksConfig: document.getElementById('socksConfig').value
-                                };
-                                await saveConfig(configData);
-                                showStatus('${isFarsi ? 'موفقیت‌آمیز بود' : '已替换'} ' + selectedItems.length + ' ${isFarsi ? 'مورد و ذخیره شد' : '项并已保存'}', 'success');
-                            } catch (err) {
-                                showStatus('${isFarsi ? 'خطا در ذخیره' : '保存失败'}: ' + err.message, 'error');
-                            } finally {
-                                addSelectedBtn.disabled = false;
-                                addSelectedBtn.textContent = '✓ ${isFarsi ? 'افزودن انتخاب‌شده‌ها به لیست ترجیحی' : '添加选中项到优选列表'}';
-                            }
+                        overwriteSelectedBtn.disabled = true;
+                        appendSelectedBtn.disabled = true;
+                        overwriteSelectedBtn.textContent = '${isFarsi ? 'در حال ذخیره...' : '保存中...'}';
+                        
+                        try {
+                            const configData = {
+                                customIP: document.getElementById('customIP').value,
+                                yx: newValue,
+                                yxURL: document.getElementById('yxURL').value,
+                                socksConfig: document.getElementById('socksConfig').value
+                            };
+                            await saveConfig(configData);
+                            showStatus('${isFarsi ? 'موفقیت‌آمیز بود' : '已覆盖'} ' + selectedItems.length + ' ${isFarsi ? 'مورد و ذخیره شد' : '项并已保存'}', 'success');
+                        } catch (err) {
+                            showStatus('${isFarsi ? 'خطا در ذخیره' : '保存失败'}: ' + err.message, 'error');
+                        } finally {
+                            overwriteSelectedBtn.disabled = false;
+                            appendSelectedBtn.disabled = false;
+                            overwriteSelectedBtn.textContent = '${isFarsi ? '覆盖添加' : '覆盖添加'}';
+                        }
+                    });
+                }
+                
+                // 追加添加
+                if (appendSelectedBtn) {
+                    appendSelectedBtn.addEventListener('click', async function() {
+                        const selectedItems = getSelectedItems();
+                        if (!selectedItems || selectedItems.length === 0) return;
+                        
+                        const yxInput = document.getElementById('yx');
+                        const currentValue = yxInput.value.trim();
+                        const newItems = selectedItems.join(',');
+                        const newValue = currentValue ? (currentValue + ',' + newItems) : newItems;
+                        yxInput.value = newValue;
+                        
+                        overwriteSelectedBtn.disabled = true;
+                        appendSelectedBtn.disabled = true;
+                        appendSelectedBtn.textContent = '${isFarsi ? 'در حال ذخیره...' : '保存中...'}';
+                        
+                        try {
+                            const configData = {
+                                customIP: document.getElementById('customIP').value,
+                                yx: newValue,
+                                yxURL: document.getElementById('yxURL').value,
+                                socksConfig: document.getElementById('socksConfig').value
+                            };
+                            await saveConfig(configData);
+                            showStatus('${isFarsi ? 'موفقیت‌آمیز بود' : '已追加'} ' + selectedItems.length + ' ${isFarsi ? 'مورد و ذخیره شد' : '项并已保存'}', 'success');
+                        } catch (err) {
+                            showStatus('${isFarsi ? 'خطا در ذخیره' : '保存失败'}: ' + err.message, 'error');
+                        } finally {
+                            overwriteSelectedBtn.disabled = false;
+                            appendSelectedBtn.disabled = false;
+                            appendSelectedBtn.textContent = '${isFarsi ? '追加添加' : '追加添加'}';
                         }
                     });
                 }
@@ -4030,64 +4107,194 @@
                 }
                 
                 const coloMap = {
-                    'SJC': '圣何塞', 'LAX': '洛杉矶', 'SEA': '西雅图', 'SFO': '旧金山', 'DFW': '达拉斯',
-                    'ORD': '芝加哥', 'IAD': '华盛顿', 'ATL': '亚特兰大', 'MIA': '迈阿密', 'DEN': '丹佛',
-                    'PHX': '凤凰城', 'BOS': '波士顿', 'EWR': '纽瓦克', 'JFK': '纽约', 'LAS': '拉斯维加斯',
-                    'MSP': '明尼阿波利斯', 'DTW': '底特律', 'PHL': '费城', 'CLT': '夏洛特', 'SLC': '盐湖城',
-                    'PDX': '波特兰', 'SAN': '圣地亚哥', 'TPA': '坦帕', 'IAH': '休斯顿', 'MCO': '奥兰多',
-                    'AUS': '奥斯汀', 'BNA': '纳什维尔', 'RDU': '罗利', 'IND': '印第安纳波利斯', 'CMH': '哥伦布',
-                    'MCI': '堪萨斯城', 'OMA': '奥马哈', 'ABQ': '阿尔伯克基', 'OKC': '俄克拉荷马城', 'MEM': '孟菲斯',
-                    'JAX': '杰克逊维尔', 'RIC': '里士满', 'BUF': '布法罗', 'PIT': '匹兹堡', 'CLE': '克利夫兰',
-                    'CVG': '辛辛那提', 'MKE': '密尔沃基', 'STL': '圣路易斯', 'SAT': '圣安东尼奥', 'HNL': '檀香山',
-                    'ANC': '安克雷奇', 'SMF': '萨克拉门托', 'ONT': '安大略', 'OAK': '奥克兰',
-                    'HKG': '香港', 'TPE': '台北', 'TSA': '台北松山', 'KHH': '高雄',
-                    'NRT': '东京成田', 'HND': '东京羽田', 'KIX': '大阪关西', 'ITM': '大阪伊丹', 'NGO': '名古屋',
-                    'FUK': '福冈', 'CTS': '札幌', 'OKA': '冲绳',
-                    'ICN': '首尔仁川', 'GMP': '首尔金浦', 'PUS': '釜山',
-                    'SIN': '新加坡', 'BKK': '曼谷', 'DMK': '曼谷廊曼', 'KUL': '吉隆坡', 'CGK': '雅加达',
-                    'MNL': '马尼拉', 'CEB': '宿务', 'HAN': '河内', 'SGN': '胡志明', 'DAD': '岘港',
-                    'RGN': '仰光', 'PNH': '金边', 'REP': '暹粒', 'VTE': '万象',
-                    'BOM': '孟买', 'DEL': '新德里', 'MAA': '金奈', 'BLR': '班加罗尔', 'CCU': '加尔各答',
-                    'HYD': '海得拉巴', 'AMD': '艾哈迈达巴德', 'COK': '科钦', 'PNQ': '浦那', 'GOI': '果阿',
-                    'CMB': '科伦坡', 'DAC': '达卡', 'KTM': '加德满都', 'ISB': '伊斯兰堡', 'KHI': '卡拉奇', 'LHE': '拉合尔',
-                    'LHR': '伦敦希思罗', 'LGW': '伦敦盖特威克', 'STN': '伦敦斯坦斯特德', 'LTN': '伦敦卢顿', 'MAN': '曼彻斯特', 'EDI': '爱丁堡', 'BHX': '伯明翰',
-                    'CDG': '巴黎戴高乐', 'ORY': '巴黎奥利', 'MRS': '马赛', 'LYS': '里昂', 'NCE': '尼斯',
-                    'FRA': '法兰克福', 'MUC': '慕尼黑', 'TXL': '柏林', 'BER': '柏林勃兰登堡', 'HAM': '汉堡', 'DUS': '杜塞尔多夫', 'CGN': '科隆', 'STR': '斯图加特',
-                    'AMS': '阿姆斯特丹', 'BRU': '布鲁塞尔', 'LUX': '卢森堡',
-                    'ZRH': '苏黎世', 'GVA': '日内瓦', 'BSL': '巴塞尔',
-                    'VIE': '维也纳', 'PRG': '布拉格', 'BUD': '布达佩斯', 'WAW': '华沙', 'KRK': '克拉科夫',
-                    'MXP': '米兰马尔彭萨', 'LIN': '米兰利纳特', 'FCO': '罗马', 'VCE': '威尼斯', 'NAP': '那不勒斯', 'FLR': '佛罗伦萨', 'BGY': '贝加莫',
-                    'MAD': '马德里', 'BCN': '巴塞罗那', 'PMI': '帕尔马', 'AGP': '马拉加', 'VLC': '瓦伦西亚', 'SVQ': '塞维利亚', 'BIO': '毕尔巴鄂',
-                    'LIS': '里斯本', 'OPO': '波尔图', 'FAO': '法鲁',
-                    'DUB': '都柏林', 'CPH': '哥本哈根', 'ARN': '斯德哥尔摩', 'GOT': '哥德堡',
-                    'OSL': '奥斯陆', 'BGO': '卑尔根', 'HEL': '赫尔辛基', 'RIX': '里加', 'TLL': '塔林', 'VNO': '维尔纽斯',
-                    'ATH': '雅典', 'SKG': '塞萨洛尼基', 'SOF': '索非亚', 'OTP': '布加勒斯特', 'BEG': '贝尔格莱德', 'ZAG': '萨格勒布', 'LJU': '卢布尔雅那',
-                    'KBP': '基辅', 'IEV': '基辅茹良尼', 'ODS': '敖德萨',
-                    'SVO': '莫斯科谢列梅捷沃', 'DME': '莫斯科多莫杰多沃', 'VKO': '莫斯科伏努科沃', 'LED': '圣彼得堡',
-                    'IST': '伊斯坦布尔', 'SAW': '伊斯坦布尔萨比哈', 'ESB': '安卡拉', 'AYT': '安塔利亚', 'ADB': '伊兹密尔',
-                    'TLV': '特拉维夫', 'AMM': '安曼', 'BEY': '贝鲁特', 'BAH': '巴林', 'KWI': '科威特',
-                    'DXB': '迪拜', 'AUH': '阿布扎比', 'SHJ': '沙迦', 'DOH': '多哈', 'MCT': '马斯喀特',
-                    'RUH': '利雅得', 'JED': '吉达', 'DMM': '达曼',
-                    'CAI': '开罗', 'HBE': '亚历山大', 'SSH': '沙姆沙伊赫',
-                    'CMN': '卡萨布兰卡', 'RAK': '马拉喀什', 'TUN': '突尼斯', 'ALG': '阿尔及尔',
-                    'LOS': '拉各斯', 'ABV': '阿布贾', 'ACC': '阿克拉', 'NBO': '内罗毕', 'MBA': '蒙巴萨', 'ADD': '亚的斯亚贝巴', 'DAR': '达累斯萨拉姆',
-                    'JNB': '约翰内斯堡', 'CPT': '开普敦', 'DUR': '德班', 'HRE': '哈拉雷', 'LUN': '卢萨卡',
-                    'MRU': '毛里求斯', 'SEZ': '塞舌尔',
-                    'SYD': '悉尼', 'MEL': '墨尔本', 'BNE': '布里斯班', 'PER': '珀斯', 'ADL': '阿德莱德', 'CBR': '堪培拉', 'OOL': '黄金海岸', 'CNS': '凯恩斯',
-                    'AKL': '奥克兰', 'WLG': '惠灵顿', 'CHC': '基督城', 'ZQN': '皇后镇',
-                    'NAN': '楠迪', 'PPT': '帕皮提', 'GUM': '关岛',
-                    'GRU': '圣保罗瓜鲁柳斯', 'CGH': '圣保罗孔戈尼亚斯', 'GIG': '里约热内卢', 'BSB': '巴西利亚', 'CNF': '贝洛奥里藏特', 'POA': '阿雷格里港', 'CWB': '库里蒂巴', 'FOR': '福塔莱萨', 'REC': '累西腓', 'SSA': '萨尔瓦多',
-                    'EZE': '布宜诺斯艾利斯', 'AEP': '布宜诺斯艾利斯城', 'COR': '科尔多瓦', 'MDZ': '门多萨',
-                    'SCL': '圣地亚哥', 'LIM': '利马', 'BOG': '波哥大', 'MDE': '麦德林', 'CLO': '卡利',
-                    'UIO': '基多', 'GYE': '瓜亚基尔', 'CCS': '加拉加斯', 'MVD': '蒙得维的亚', 'ASU': '亚松森',
-                    'PTY': '巴拿马城', 'SJO': '圣何塞', 'GUA': '危地马拉城', 'SAL': '圣萨尔瓦多', 'TGU': '特古西加尔巴', 'MGA': '马那瓜', 'BZE': '伯利兹城',
-                    'MEX': '墨西哥城', 'GDL': '瓜达拉哈拉', 'MTY': '蒙特雷', 'CUN': '坎昆', 'TIJ': '蒂华纳', 'SJD': '圣何塞德尔卡沃',
-                    'YYZ': '多伦多', 'YVR': '温哥华', 'YUL': '蒙特利尔', 'YYC': '卡尔加里', 'YEG': '埃德蒙顿', 'YOW': '渥太华', 'YWG': '温尼伯', 'YHZ': '哈利法克斯',
-                    'HAV': '哈瓦那', 'SJU': '圣胡安', 'SDQ': '圣多明各', 'PAP': '太子港', 'KIN': '金斯顿', 'NAS': '拿骚', 'MBJ': '蒙特哥贝'
+                    'SJC': '🇺🇸 圣何塞', 'LAX': '🇺🇸 洛杉矶', 'SEA': '🇺🇸 西雅图', 'SFO': '🇺🇸 旧金山', 'DFW': '🇺🇸 达拉斯',
+                    'ORD': '🇺🇸 芝加哥', 'IAD': '🇺🇸 华盛顿', 'ATL': '🇺🇸 亚特兰大', 'MIA': '🇺🇸 迈阿密', 'DEN': '🇺🇸 丹佛',
+                    'PHX': '🇺🇸 凤凰城', 'BOS': '🇺🇸 波士顿', 'EWR': '🇺🇸 纽瓦克', 'JFK': '🇺🇸 纽约', 'LAS': '🇺🇸 拉斯维加斯',
+                    'MSP': '🇺🇸 明尼阿波利斯', 'DTW': '🇺🇸 底特律', 'PHL': '🇺🇸 费城', 'CLT': '🇺🇸 夏洛特', 'SLC': '🇺🇸 盐湖城',
+                    'PDX': '🇺🇸 波特兰', 'SAN': '🇺🇸 圣地亚哥', 'TPA': '🇺🇸 坦帕', 'IAH': '🇺🇸 休斯顿', 'MCO': '🇺🇸 奥兰多',
+                    'AUS': '🇺🇸 奥斯汀', 'BNA': '🇺🇸 纳什维尔', 'RDU': '🇺🇸 罗利', 'IND': '🇺🇸 印第安纳波利斯', 'CMH': '🇺🇸 哥伦布',
+                    'MCI': '🇺🇸 堪萨斯城', 'OMA': '🇺🇸 奥马哈', 'ABQ': '🇺🇸 阿尔伯克基', 'OKC': '🇺🇸 俄克拉荷马城', 'MEM': '🇺🇸 孟菲斯',
+                    'JAX': '🇺🇸 杰克逊维尔', 'RIC': '🇺🇸 里士满', 'BUF': '🇺🇸 布法罗', 'PIT': '🇺🇸 匹兹堡', 'CLE': '🇺🇸 克利夫兰',
+                    'CVG': '🇺🇸 辛辛那提', 'MKE': '🇺🇸 密尔沃基', 'STL': '🇺🇸 圣路易斯', 'SAT': '🇺🇸 圣安东尼奥', 'HNL': '🇺🇸 檀香山',
+                    'ANC': '🇺🇸 安克雷奇', 'SMF': '🇺🇸 萨克拉门托', 'ONT': '🇺🇸 安大略', 'OAK': '🇺🇸 奥克兰',
+                    'HKG': '🇭🇰 香港', 'TPE': '🇹🇼 台北', 'TSA': '🇹🇼 台北松山', 'KHH': '🇹🇼 高雄',
+                    'NRT': '🇯🇵 东京成田', 'HND': '🇯🇵 东京羽田', 'KIX': '🇯🇵 大阪关西', 'ITM': '🇯🇵 大阪伊丹', 'NGO': '🇯🇵 名古屋',
+                    'FUK': '🇯🇵 福冈', 'CTS': '🇯🇵 札幌', 'OKA': '🇯🇵 冲绳',
+                    'ICN': '🇰🇷 首尔仁川', 'GMP': '🇰🇷 首尔金浦', 'PUS': '🇰🇷 釜山',
+                    'SIN': '🇸🇬 新加坡', 'BKK': '🇹🇭 曼谷', 'DMK': '🇹🇭 曼谷廊曼', 'KUL': '🇲🇾 吉隆坡', 'CGK': '🇮🇩 雅加达',
+                    'MNL': '🇵🇭 马尼拉', 'CEB': '🇵🇭 宿务', 'HAN': '🇻🇳 河内', 'SGN': '🇻🇳 胡志明', 'DAD': '🇻🇳 岘港',
+                    'RGN': '🇲🇲 仰光', 'PNH': '🇰🇭 金边', 'REP': '🇰🇭 暹粒', 'VTE': '🇱🇦 万象',
+                    'BOM': '🇮🇳 孟买', 'DEL': '🇮🇳 新德里', 'MAA': '🇮🇳 金奈', 'BLR': '🇮🇳 班加罗尔', 'CCU': '🇮🇳 加尔各答',
+                    'HYD': '🇮🇳 海得拉巴', 'AMD': '🇮🇳 艾哈迈达巴德', 'COK': '🇮🇳 科钦', 'PNQ': '🇮🇳 浦那', 'GOI': '🇮🇳 果阿',
+                    'CMB': '🇱🇰 科伦坡', 'DAC': '🇧🇩 达卡', 'KTM': '🇳🇵 加德满都', 'ISB': '🇵🇰 伊斯兰堡', 'KHI': '🇵🇰 卡拉奇', 'LHE': '🇵🇰 拉合尔',
+                    'LHR': '🇬🇧 伦敦希思罗', 'LGW': '🇬🇧 伦敦盖特威克', 'STN': '🇬🇧 伦敦斯坦斯特德', 'LTN': '🇬🇧 伦敦卢顿', 'MAN': '🇬🇧 曼彻斯特', 'EDI': '🇬🇧 爱丁堡', 'BHX': '🇬🇧 伯明翰',
+                    'CDG': '🇫🇷 巴黎戴高乐', 'ORY': '🇫🇷 巴黎奥利', 'MRS': '🇫🇷 马赛', 'LYS': '🇫🇷 里昂', 'NCE': '🇫🇷 尼斯',
+                    'FRA': '🇩🇪 法兰克福', 'MUC': '🇩🇪 慕尼黑', 'TXL': '🇩🇪 柏林', 'BER': '🇩🇪 柏林勃兰登堡', 'HAM': '🇩🇪 汉堡', 'DUS': '🇩🇪 杜塞尔多夫', 'CGN': '🇩🇪 科隆', 'STR': '🇩🇪 斯图加特',
+                    'AMS': '🇳🇱 阿姆斯特丹', 'BRU': '🇧🇪 布鲁塞尔', 'LUX': '🇱🇺 卢森堡',
+                    'ZRH': '🇨🇭 苏黎世', 'GVA': '🇨🇭 日内瓦', 'BSL': '🇨🇭 巴塞尔',
+                    'VIE': '🇦🇹 维也纳', 'PRG': '🇨🇿 布拉格', 'BUD': '🇭🇺 布达佩斯', 'WAW': '🇵🇱 华沙', 'KRK': '🇵🇱 克拉科夫',
+                    'MXP': '🇮🇹 米兰马尔彭萨', 'LIN': '🇮🇹 米兰利纳特', 'FCO': '🇮🇹 罗马', 'VCE': '🇮🇹 威尼斯', 'NAP': '🇮🇹 那不勒斯', 'FLR': '🇮🇹 佛罗伦萨', 'BGY': '🇮🇹 贝加莫',
+                    'MAD': '🇪🇸 马德里', 'BCN': '🇪🇸 巴塞罗那', 'PMI': '🇪🇸 帕尔马', 'AGP': '🇪🇸 马拉加', 'VLC': '🇪🇸 瓦伦西亚', 'SVQ': '🇪🇸 塞维利亚', 'BIO': '🇪🇸 毕尔巴鄂',
+                    'LIS': '🇵🇹 里斯本', 'OPO': '🇵🇹 波尔图', 'FAO': '🇵🇹 法鲁',
+                    'DUB': '🇮🇪 都柏林', 'CPH': '🇩🇰 哥本哈根', 'ARN': '🇸🇪 斯德哥尔摩', 'GOT': '🇸🇪 哥德堡',
+                    'OSL': '🇳🇴 奥斯陆', 'BGO': '🇳🇴 卑尔根', 'HEL': '🇫🇮 赫尔辛基', 'RIX': '🇱🇻 里加', 'TLL': '🇪🇪 塔林', 'VNO': '🇱🇹 维尔纽斯',
+                    'ATH': '🇬🇷 雅典', 'SKG': '🇬🇷 塞萨洛尼基', 'SOF': '🇧🇬 索非亚', 'OTP': '🇷🇴 布加勒斯特', 'BEG': '🇷🇸 贝尔格莱德', 'ZAG': '🇭🇷 萨格勒布', 'LJU': '🇸🇮 卢布尔雅那',
+                    'KBP': '🇺🇦 基辅', 'IEV': '🇺🇦 基辅茹良尼', 'ODS': '🇺🇦 敖德萨',
+                    'SVO': '🇷🇺 莫斯科谢列梅捷沃', 'DME': '🇷🇺 莫斯科多莫杰多沃', 'VKO': '🇷🇺 莫斯科伏努科沃', 'LED': '🇷🇺 圣彼得堡',
+                    'IST': '🇹🇷 伊斯坦布尔', 'SAW': '🇹🇷 伊斯坦布尔萨比哈', 'ESB': '🇹🇷 安卡拉', 'AYT': '🇹🇷 安塔利亚', 'ADB': '🇹🇷 伊兹密尔',
+                    'TLV': '🇮🇱 特拉维夫', 'AMM': '🇯🇴 安曼', 'BEY': '🇱🇧 贝鲁特', 'BAH': '🇧🇭 巴林', 'KWI': '🇰🇼 科威特',
+                    'DXB': '🇦🇪 迪拜', 'AUH': '🇦🇪 阿布扎比', 'SHJ': '🇦🇪 沙迦', 'DOH': '🇶🇦 多哈', 'MCT': '🇴🇲 马斯喀特',
+                    'RUH': '🇸🇦 利雅得', 'JED': '🇸🇦 吉达', 'DMM': '🇸🇦 达曼',
+                    'CAI': '🇪🇬 开罗', 'HBE': '🇪🇬 亚历山大', 'SSH': '🇪🇬 沙姆沙伊赫',
+                    'CMN': '🇲🇦 卡萨布兰卡', 'RAK': '🇲🇦 马拉喀什', 'TUN': '🇹🇳 突尼斯', 'ALG': '🇩🇿 阿尔及尔',
+                    'LOS': '🇳🇬 拉各斯', 'ABV': '🇳🇬 阿布贾', 'ACC': '🇬🇭 阿克拉', 'NBO': '🇰🇪 内罗毕', 'MBA': '🇰🇪 蒙巴萨', 'ADD': '🇪🇹 亚的斯亚贝巴', 'DAR': '🇹🇿 达累斯萨拉姆',
+                    'JNB': '🇿🇦 约翰内斯堡', 'CPT': '🇿🇦 开普敦', 'DUR': '🇿🇦 德班', 'HRE': '🇿🇼 哈拉雷', 'LUN': '🇿🇲 卢萨卡',
+                    'MRU': '🇲🇺 毛里求斯', 'SEZ': '🇸🇨 塞舌尔',
+                    'SYD': '🇦🇺 悉尼', 'MEL': '🇦🇺 墨尔本', 'BNE': '🇦🇺 布里斯班', 'PER': '🇦🇺 珀斯', 'ADL': '🇦🇺 阿德莱德', 'CBR': '🇦🇺 堪培拉', 'OOL': '🇦🇺 黄金海岸', 'CNS': '🇦🇺 凯恩斯',
+                    'AKL': '🇳🇿 奥克兰', 'WLG': '🇳🇿 惠灵顿', 'CHC': '🇳🇿 基督城', 'ZQN': '🇳🇿 皇后镇',
+                    'NAN': '🇫🇯 楠迪', 'PPT': '🇵🇫 帕皮提', 'GUM': '🇬🇺 关岛',
+                    'GRU': '🇧🇷 圣保罗瓜鲁柳斯', 'CGH': '🇧🇷 圣保罗孔戈尼亚斯', 'GIG': '🇧🇷 里约热内卢', 'BSB': '🇧🇷 巴西利亚', 'CNF': '🇧🇷 贝洛奥里藏特', 'POA': '🇧🇷 阿雷格里港', 'CWB': '🇧🇷 库里蒂巴', 'FOR': '🇧🇷 福塔莱萨', 'REC': '🇧🇷 累西腓', 'SSA': '🇧🇷 萨尔瓦多',
+                    'EZE': '🇦🇷 布宜诺斯艾利斯', 'AEP': '🇦🇷 布宜诺斯艾利斯城', 'COR': '🇦🇷 科尔多瓦', 'MDZ': '🇦🇷 门多萨',
+                    'SCL': '🇨🇱 圣地亚哥', 'LIM': '🇵🇪 利马', 'BOG': '🇨🇴 波哥大', 'MDE': '🇨🇴 麦德林', 'CLO': '🇨🇴 卡利',
+                    'UIO': '🇪🇨 基多', 'GYE': '🇪🇨 瓜亚基尔', 'CCS': '🇻🇪 加拉加斯', 'MVD': '🇺🇾 蒙得维的亚', 'ASU': '🇵🇾 亚松森',
+                    'PTY': '🇵🇦 巴拿马城', 'SJO': '🇨🇷 圣何塞', 'GUA': '🇬🇹 危地马拉城', 'SAL': '🇸🇻 圣萨尔瓦多', 'TGU': '🇭🇳 特古西加尔巴', 'MGA': '🇳🇮 马那瓜', 'BZE': '🇧🇿 伯利兹城',
+                    'MEX': '🇲🇽 墨西哥城', 'GDL': '🇲🇽 瓜达拉哈拉', 'MTY': '🇲🇽 蒙特雷', 'CUN': '🇲🇽 坎昆', 'TIJ': '🇲🇽 蒂华纳', 'SJD': '🇲🇽 圣何塞德尔卡沃',
+                    'YYZ': '🇨🇦 多伦多', 'YVR': '🇨🇦 温哥华', 'YUL': '🇨🇦 蒙特利尔', 'YYC': '🇨🇦 卡尔加里', 'YEG': '🇨🇦 埃德蒙顿', 'YOW': '🇨🇦 渥太华', 'YWG': '🇨🇦 温尼伯', 'YHZ': '🇨🇦 哈利法克斯',
+                    'HAV': '🇨🇺 哈瓦那', 'SJU': '🇵🇷 圣胡安', 'SDQ': '🇩🇴 圣多明各', 'PAP': '🇭🇹 太子港', 'KIN': '🇯🇲 金斯顿', 'NAS': '🇧🇸 拿骚', 'MBJ': '🇯🇲 蒙特哥贝'
                 };
                 
                 function getColoName(colo) {
                     return coloMap[colo] || colo;
+                }
+                
+                // 城市筛选相关函数
+                const cityFilterContainer = document.getElementById('cityFilterContainer');
+                const cityCheckboxesContainer = document.getElementById('cityCheckboxesContainer');
+                
+                function updateCityFilter() {
+                    if (!cityFilterContainer || !cityCheckboxesContainer) return;
+                    
+                    // 从测试结果中提取所有可用的城市
+                    const cityMap = new Map();
+                    testResults.forEach((result, index) => {
+                        if (result.success && result.colo) {
+                            const colo = result.colo;
+                            if (!cityMap.has(colo)) {
+                                cityMap.set(colo, {
+                                    colo: colo,
+                                    name: getColoName(colo),
+                                    count: 0
+                                });
+                            }
+                            cityMap.get(colo).count++;
+                        }
+                    });
+                    
+                    if (cityMap.size === 0) {
+                        cityFilterContainer.style.display = 'none';
+                        return;
+                    }
+                    
+                    cityFilterContainer.style.display = 'block';
+                    cityCheckboxesContainer.innerHTML = '';
+                    
+                    // 按城市名称排序
+                    const cities = Array.from(cityMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+                    
+                    cities.forEach(city => {
+                        const label = document.createElement('label');
+                        label.style.cssText = 'display: inline-flex; align-items: center; cursor: pointer; color: #00ff00; font-size: 0.85rem; padding: 4px 8px; background: rgba(0, 40, 0, 0.4); border: 1px solid #00aa00; border-radius: 4px;';
+                        
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.value = city.colo;
+                        checkbox.checked = true;
+                        checkbox.dataset.colo = city.colo;
+                        checkbox.style.cssText = 'margin-right: 6px; width: 16px; height: 16px; cursor: pointer;';
+                        
+                        const span = document.createElement('span');
+                        span.textContent = city.name + ' (' + city.count + ')';
+                        
+                        label.appendChild(checkbox);
+                        label.appendChild(span);
+                        cityCheckboxesContainer.appendChild(label);
+                        
+                        checkbox.addEventListener('change', filterResultsByCity);
+                    });
+                    
+                    // 监听筛选模式变化
+                    const filterModeRadios = document.querySelectorAll('input[name="cityFilterMode"]');
+                    filterModeRadios.forEach(radio => {
+                        radio.addEventListener('change', function() {
+                            if (this.value === 'all') {
+                                // 切换到"全部城市"模式时，自动选中所有城市复选框
+                                const cityCheckboxes = cityCheckboxesContainer.querySelectorAll('input[type="checkbox"]');
+                                cityCheckboxes.forEach(cb => {
+                                    cb.checked = true;
+                                    cb.disabled = false;
+                                });
+                            }
+                            filterResultsByCity();
+                        });
+                    });
+                }
+                
+                function filterResultsByCity() {
+                    if (!resultsList || !cityCheckboxesContainer) return;
+                    
+                    const filterMode = document.querySelector('input[name="cityFilterMode"]:checked')?.value || 'all';
+                    const resultItems = resultsList.querySelectorAll('[data-index]');
+                    const cityCheckboxes = cityCheckboxesContainer.querySelectorAll('input[type="checkbox"]');
+                    
+                    if (filterMode === 'fastest10') {
+                        // 只选择最快的10个
+                        const sortedResults = testResults
+                            .map((result, index) => ({ result, index }))
+                            .filter(item => item.result.success)
+                            .sort((a, b) => a.result.latency - b.result.latency)
+                            .slice(0, 10);
+                        
+                        const fastestIndices = new Set(sortedResults.map(item => item.index));
+                        
+                        resultItems.forEach(item => {
+                            const index = parseInt(item.dataset.index);
+                            const checkbox = item.querySelector('input[type="checkbox"]');
+                            if (fastestIndices.has(index)) {
+                                item.style.display = 'flex';
+                                if (checkbox) checkbox.checked = true;
+                            } else {
+                                item.style.display = 'none';
+                                if (checkbox) checkbox.checked = false;
+                            }
+                        });
+                        
+                        // 禁用城市复选框
+                        cityCheckboxes.forEach(cb => cb.disabled = true);
+                    } else {
+                        // 根据选中的城市筛选
+                        const selectedCities = new Set();
+                        cityCheckboxes.forEach(cb => {
+                            if (cb.checked) {
+                                selectedCities.add(cb.value);
+                            }
+                        });
+                        
+                        // 如果所有城市都被选中（或没有选中任何城市），显示所有结果
+                        const allChecked = cityCheckboxes.length > 0 && selectedCities.size === cityCheckboxes.length;
+                        const noneChecked = selectedCities.size === 0;
+                        
+                        resultItems.forEach(item => {
+                            const colo = item.dataset.colo || '';
+                            if (allChecked || noneChecked || selectedCities.has(colo)) {
+                                item.style.display = 'flex';
+                            } else {
+                                item.style.display = 'none';
+                            }
+                        });
+                        
+                        // 启用城市复选框
+                        cityCheckboxes.forEach(cb => cb.disabled = false);
+                    }
                 }
                 
                 async function testLatency(host, port, signal) {
@@ -5330,20 +5537,9 @@
         
         const envFallback = getConfigValue('p', '');
         if (envFallback) {
-            const fallbackValue = envFallback.toLowerCase();
-            if (fallbackValue.includes(']:')) {
-                const lastColonIndex = fallbackValue.lastIndexOf(':');
-                fallbackPort = fallbackValue.slice(lastColonIndex + 1);
-                fallbackAddress = fallbackValue.slice(0, lastColonIndex);
-            } else if (!fallbackValue.includes(']:') && !fallbackValue.includes(']')) {
-                [fallbackAddress, fallbackPort = '443'] = fallbackValue.split(':');
-            } else {
-                fallbackAddress = fallbackValue;
-                fallbackPort = '443';
-            }
+            fallbackAddress = envFallback.trim();
         } else {
             fallbackAddress = '';
-            fallbackPort = '443';
         }
         
         socks5Config = getConfigValue('s', '') || '';
