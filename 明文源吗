@@ -1783,7 +1783,7 @@
             portsToGenerate.forEach(({ port, tls }) => {
                 if (tls) {
                     
-                    
+                    const wsNodeName = `${nodeNameBase}`;
                     const wsParams = new URLSearchParams({ 
                         encryption: 'none', 
                         security: 'tls', 
@@ -1805,7 +1805,7 @@
                     links.push(`${proto}://${user}@${safeIP}:${port}?${wsParams.toString()}#${encodeURIComponent(wsNodeName)}`);
                 } else {
                     
-                    const wsNodeName = `${nodeNameBase}-${port}-WS`;
+                    const wsNodeName = `${nodeNameBase}`;
                     const wsParams = new URLSearchParams({
                         encryption: 'none',
                         security: 'none',
@@ -1865,7 +1865,7 @@
             portsToGenerate.forEach(({ port, tls }) => {
                 if (tls) {
                     
-                    
+                    const wsNodeName = `${nodeNameBase}`;
                     const wsParams = new URLSearchParams({ 
                         security: 'tls', 
                         sni: workerDomain, 
@@ -5628,7 +5628,7 @@
             
             if (CF_HTTPS_PORTS.includes(port)) {
                 
-                
+                const wsNodeName = `${nodeName}`;
                 let link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
                 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
@@ -5649,7 +5649,7 @@
                 }
             } else {
                 
-                
+                const wsNodeName = `${nodeName}`;
                 let link = `${proto}://${user}@${item.ip}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
                 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
@@ -5720,7 +5720,7 @@
             
             if (CF_HTTPS_PORTS.includes(port)) {
                 
-                
+                const wsNodeName = `${nodeName}`;
                 let link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
                 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
@@ -5741,7 +5741,7 @@
                 }
             } else {
                 
-                
+                const wsNodeName = `${nodeName}`;
                 let link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
                 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
