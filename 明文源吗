@@ -146,11 +146,14 @@ async function req(url, options = {}) {
         }
 
         // --- 自动日志曝光 (调试增强) ---
-        if (isWorker && !options.quiet) {
+        // 放宽判定逻辑：只要是发往 Worker 的请求，且没有 quiet 标志，就打印日志
+        const shouldLog = (isWorker || u.href.includes("omg666.eu.org")) && !options.quiet;
+        
+        if (shouldLog) {
             const urlObj = new URL(url, API_CF_WORKER);
             let label = urlObj.pathname;
             
-            // 智能识别：提取歌名和音质，避免“千篇一律”
+            // 智能识别：提取歌名和音质
             if (data && typeof data === 'object') {
                 const songName = data.name || (data.songs && data.songs[0]?.name) || "";
                 const qLevel = data.level || (data.data && data.data[0]?.level) || "";
@@ -158,7 +161,8 @@ async function req(url, options = {}) {
                 else if (data.msg) label += ` (${data.msg})`;
             }
             
-            console.log(`📡 [API Response] ${label}:`, data);
+            // 使用 console.info 增加权重，防止被混淆器的 drop_console 误伤
+            console.info(`📡 [API Response] ${label}:`, data);
         }
                      
         return (typeof data === 'string' && data.trim().startsWith('{')) ? JSON.parse(data) : data;
@@ -1287,7 +1291,7 @@ class QualityDetector {
 
         // URL Deduplication & Size Validation
         const urlMap = new Map();
-        console.groupCollapsed(`[QualityDetector] ${songId} 检测结果(原始: ${validResults.length} 个)`);
+        console.group(`[QualityDetector] ${songId} 检测结果(原始: ${validResults.length} 个)`);
 
         // 1. Group by URL Key (Gather all levels pointing to same URL)
         for (const q of validResults) {
@@ -1374,7 +1378,7 @@ class QualityDetector {
             q.sizeStr = entry.sizeStr;
 
             unique.push(q);
-            console.log(`✅ Unique: [${q.level}] ${q.name} - ${q.sizeStr} `);
+            console.info(`✅ Unique: [${q.level}] ${q.name} - ${q.sizeStr} `);
         }
 
         // 3. Final Sort by Size (Descending)
@@ -1641,7 +1645,7 @@ class QualityDetector {
                     }
 
                     const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '未知大小';
-                    return { ...q, available: true, url: url, urlKey: url.split('?')[0], size: size, sizeStr: sizeMB };
+                    return { ...q, available: true, url: url, urlKey: url.split('?')[0], size: size, sizeStr: sizeMB, raw: res };
                 }
                 return null;
             } catch (e) { return null; }
@@ -1654,6 +1658,7 @@ class QualityDetector {
         const sizeMap = new Map();
         const unique = [];
 
+        console.groupCollapsed(`[QualityDetector] Xuan ${songId} 检测结果`);
         for (const r of validResults) {
             if (urlMap.has(r.urlKey)) continue;
             if (r.size && r.size > 0 && sizeMap.has(r.size)) {
@@ -1672,10 +1677,11 @@ class QualityDetector {
         unique.sort((a, b) => (qWeight[b.level] || 0) - (qWeight[a.level] || 0));
         unique.forEach(r => {
             // 1. 先打印对应的原始响应数据 (带上识别标签)
-            console.log(`📡 [API Response] /v1/core/fetch.bin [${r.name}${r.level ? ' - ' + r.level : ''}]:`, r.raw);
+            console.info(`📡 [API Response] /v1/core/fetch.bin [${r.name}${r.level ? ' - ' + r.level : ''}]:`, r.raw);
             // 2. 再紧跟打印 Analysis 结论
-            console.log(`✅ [Analysis] Channel-A: [${r.level}] - ${r.sizeStr}`);
+            console.info(`✅ [Analysis] Channel-A: [${r.level}] - ${r.sizeStr}`);
         });
+        console.groupEnd();
 
         // 最终返回也按同一逻辑排序
         return unique.length > 0 ? unique : [];
@@ -1740,6 +1746,7 @@ class QualityDetector {
         const sizeMap = new Map();
         const unique = [];
 
+        console.groupCollapsed(`[QualityDetector] Rrvenn ${songId} 检测结果`);
         for (const r of validResults) {
             // URL 级重复拦截
             if (urlMap.has(r.urlKey)) continue;
@@ -1759,9 +1766,10 @@ class QualityDetector {
         const qWeight = { jymaster: 10, dolby: 9, sky: 8, jyeffect: 7, hires: 6, lossless: 5, exhigh: 4, higher: 3, standard: 2 };
         unique.sort((a, b) => (qWeight[b.level] || 0) - (qWeight[a.level] || 0));
         unique.forEach(r => {
-            console.log(`📡 [API Response] /v1/core/fetch.bin [${r.name}${r.level ? ' - ' + r.level : ''}]:`, r.raw);
-            console.log(`✅ [Analysis] Channel-B: [${r.level}] - ${r.sizeStr}`);
+            console.info(`📡 [API Response] /v1/core/fetch.bin [${r.name}${r.level ? ' - ' + r.level : ''}]:`, r.raw);
+            console.info(`✅ [Analysis] Channel-B: [${r.level}] - ${r.sizeStr}`);
         });
+        console.groupEnd();
 
         // 最终按此排序结果返回
         return unique.length > 0 ? unique : [];
@@ -1808,7 +1816,7 @@ class QualityDetector {
                     }
 
                     const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '未知大小';
-                    return { ...q, available: true, url: url, urlKey: url.split('?')[0], size: size, sizeStr: sizeMB };
+                    return { ...q, available: true, url: url, urlKey: url.split('?')[0], size: size, sizeStr: sizeMB, raw: res };
                 }
                 return null;
             } catch (e) { return null; }
@@ -1821,6 +1829,7 @@ class QualityDetector {
         const sizeMap = new Map();
         const unique = [];
 
+        console.groupCollapsed(`[QualityDetector] Cyrui ${songId} 检测结果`);
         for (const r of validResults) {
             if (urlMap.has(r.urlKey)) continue;
             if (r.size && r.size > 0 && sizeMap.has(r.size)) {
@@ -1836,9 +1845,10 @@ class QualityDetector {
         const qWeight = { jymaster: 10, dolby: 9, sky: 8, jyeffect: 7, hires: 6, lossless: 5, exhigh: 4, higher: 3, standard: 2 };
         unique.sort((a, b) => (qWeight[b.level] || 0) - (qWeight[a.level] || 0));
         unique.forEach(r => {
-            console.log(`📡 [API Response] /v1/core/fetch.bin [${r.name}${r.level ? ' - ' + r.level : ''}]:`, r.raw);
-            console.log(`✅ [Analysis] Channel-C: [${r.level}] - ${r.sizeStr}`);
+            console.info(`📡 [API Response] /v1/core/cy.bin [${r.name}${r.level ? ' - ' + r.level : ''}]:`, r.raw);
+            console.info(`✅ [Analysis] Channel-CY: [${r.level}] - ${r.sizeStr}`);
         });
+        console.groupEnd();
 
         return unique.length > 0 ? unique : [];
     }
