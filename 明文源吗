@@ -172,7 +172,19 @@ async function req(url, options = {}) {
 }
 
 // 显式导出以防止混淆
+// 显式导出以防止混淆后无法访问
 window.req = req;
+window.API_CF_WORKER = API_CF_WORKER;
+window.API_PRIORITY_LIST = API_PRIORITY_LIST;
+window.API_RRVENN = API_RRVENN;
+window.API_XUAN = API_XUAN;
+window.API_PROXY_V2 = API_PROXY_V2;
+window.API_PROXY_V3 = API_PROXY_V3;
+window.API_PROXY_V4 = API_PROXY_V4;
+window.API_GDMUSIC = API_GDMUSIC;
+window.API_CYRUI = API_CYRUI;
+window.API_CF_DIRECT = API_CF_DIRECT;
+window.API_KEY = API_KEY;
 
 // API 交互逻辑
 
@@ -1007,13 +1019,17 @@ async function fetchAndDownload(btn, level, tag) {
 // 显式导出以防止混淆导致外部调用失败
 window.loadSheet = loadSheet;
 window.doSearch = doSearch;
+window.doSmartAlbumSearch = doSmartAlbumSearch;
 window.smartMatchNetease = smartMatchNetease;
 window.loadToplists = loadToplists;
+window.openToplistInternal = openToplistInternal;
 window.loadArtistList = loadArtistList;
 window.loadArtistDetail = loadArtistDetail;
+window.loadArtistAlbums = loadArtistAlbums;
 window.loadAlbumDetail = loadAlbumDetail;
 window.fetchAndDownload = fetchAndDownload;
 window.loadLrc = loadLrc;
+window.loadPageDetails = loadPageDetails;
 // 音质检测器模块
 
 class QualityDetector {
