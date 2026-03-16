@@ -1,913 +1,830 @@
-// 音质检测器模块
 
-class QualityDetector {
-    constructor() {
-        this.cache = new Map();
-        this.cacheExpiry = 30 * 60 * 1000; // 30分钟
-    }
+// API 交互逻辑
 
-    getCacheKey(song) {
-        return `${song.source || 'netease'}_${song.id}`;
-    }
+async function smartMatchNetease(name, artist) {
+    try {
+        const query = `${name} ${artist || ''}`.trim();
+        const d = await req(`${API_CF_WORKER}/v1/query/index.db?keywords=${encodeURIComponent(query)}&limit=1`);
+        const songs = findSongArray(d);
+        if (songs && songs.length > 0) {
+            const match = songs[0];
+            let picUrl = match.pic || match.picUrl || (match.al && match.al.picUrl) || (match.album && match.album.picUrl) || "";
+            if (picUrl) picUrl = picUrl.replace('http://', 'https://');
 
-    isCacheValid(cacheItem) {
-        if (!cacheItem) return false;
-        return (Date.now() - cacheItem.timestamp) < this.cacheExpiry;
-    }
+            // 返回完整信息以供UI渲染
+            // 兼容Netease原始结构 (ar/al) 和标准化结构
+            const artistName = match.ar ? match.ar.map(a => a.name).join('/') : (match.artists ? match.artists.map(a => a.name).join('/') : (match.artist || "Unknown"));
+            const albumName = match.al ? match.al.name : (match.album ? match.album.name : "");
 
-    async detectQualities(song, overrideApi = null) {
-        const cacheKey = this.getCacheKey(song);
-        const cached = this.cache.get(cacheKey);
-
-        if (!overrideApi && this.isCacheValid(cached)) {
-            console.log(`[QualityDetector] 使用缓存:`, song.name);
-            return cached.qualities;
+            return {
+                id: match.id,
+                name: match.name,
+                artist: artistName,
+                album: albumName,
+                pic: picUrl,
+                duration: (typeof formatDuration === 'function') ? formatDuration(match.dt || match.duration || 0) : (match.dt || match.duration || 0),
+                source: 'netease' // 强制标记源
+            };
         }
+    } catch (e) { } return null;
+}
 
-        console.log(`[QualityDetector] 分析中...`, overrideApi ? `(M: ${overrideApi})` : '');
-        const source = song.source || 'netease';
-        let qualities = [];
+async function doSearch(kw, forceSrc) {
+    if (!kw) return;
 
-        try {
-            // ★★★ Check Override API First (For Recovery) ★★★
-            if (overrideApi) {
-                if (source === 'netease' || source === 'netease_album') {
-                    // Special handling for GDMUSIC/SAYQZ if passed as override, but usually it's a URL
-                    if (overrideApi === API_CF_DIRECT || overrideApi.includes('/song/url')) {
-                        qualities = await this.checkDirectQualities(song.id);
-                        if (!qualities || qualities.length === 0) qualities = await this.checkWyapiQualities(song.id, overrideApi);
-                    } else if (overrideApi.includes('gdm')) {
-                        qualities = await this.checkGDStudioQualities('netease', song.id);
-                    } else if (overrideApi.includes('sayqz')) {
-                        qualities = await this.checkSayqzQualities('netease', song.id);
-                    } else {
-                        qualities = await this.checkWyapiQualities(song.id, overrideApi);
-                    }
-                } else if (source === 'qq' || source === 'kuwo') {
-                    // Override for QQ/Kuwo usually implies forcing a specific API test
-                    if (overrideApi.includes('sayqz')) qualities = await this.checkSayqzQualities(source, song.id);
-                }
+    // Lock Blur: Prevent auto-focus/debounce from re-enabling blur during search
+    window.isExecutingSearch = true;
+    setTimeout(() => { window.isExecutingSearch = false; }, 1500); // Release lock after 1.5s
 
-                // If we have an override, we return immediately after this block
-                this.cache.set(cacheKey, { qualities, timestamp: Date.now() });
-                return qualities;
-            }
+    // Manual History Push before Search (Context Change)
+    if (typeof pushNavState === 'function') pushNavState();
 
-            // ★★★ Check User Preferred API First ★★★
-            if (window.state && window.state.preferredApi) {
-                const pApi = window.state.preferredApi;
-                console.log(`[QualityDetector] Prioritizing User API: ${pApi}`);
+    if (!document.getElementById('view-discover').classList.contains('active')) switchView('discover');
+    document.getElementById('searchInput').blur();
 
-                if (source === 'netease' || source === 'netease_album') {
-                    if (pApi === 'proxy') qualities = await this.checkWyapiQualities(song.id, API_PROXY);
-                    else if (pApi === 'direct') qualities = await this.checkDirectQualities(song.id);
-
-                    else if (pApi === 'sayqz') qualities = await this.checkSayqzQualities('netease', song.id);
-                    else if (pApi === 'gdstudio') qualities = await this.checkGDStudioQualities('netease', song.id);
-                } else {
-                    // Non-Netease
-                    if (pApi === 'sayqz') qualities = await this.checkSayqzQualities(source, song.id);
-                    else if (pApi === 'gdstudio') qualities = await this.checkGDStudioQualities(source, song.id);
-                }
-
-                if (qualities && qualities.length > 0) {
-                    console.log(`[QualityDetector] User API (${pApi}) found ${qualities.length} qualities.`);
-                    this.cache.set(cacheKey, { qualities, timestamp: Date.now() });
-                    return qualities;
-                }
-                console.warn(`[QualityDetector] User API (${pApi}) returned no results, falling back...`);
-            }
-
-            if (source === 'netease' || source === 'netease_album') {
-                // --- Dynamic Priority Check based on API_PRIORITY_LIST ---
-                if (typeof API_PRIORITY_LIST === 'undefined') {
-                    console.error("API_PRIORITY_LIST missing! Check api.js");
-                    return this.getDefaultQualities(source);
-                }
-
-                for (const provider of API_PRIORITY_LIST) {
-                    // 静默运行，不再打印 Provider 信息
-
-                    try {
-                        if (provider.type === 'cyrui') {
-                            qualities = await this.checkCyruiQualities(song.id);
-                        } else if (provider.type === 'xuan') {
-                            qualities = await this.checkXuanQualities(song.id);
-                        } else if (provider.type === 'rrvenn') {
-                            qualities = await this.checkRrvennQualities(song.id);
-                        } else if (provider.type === 'proxy') {
-                            qualities = await this.checkWyapiQualities(song.id, provider.api);
-                        } else if (provider.type === 'gd') {
-                            qualities = await this.checkGDStudioQualities('netease', song.id);
-                        } else if (provider.type === 'direct') {
-                            qualities = await this.checkDirectQualities(song.id);
-                        }
-
-                        if (qualities && qualities.length > 0) {
-                            // console.log(`[QualityDetector] Success`);
-                            this.cache.set(cacheKey, { qualities, timestamp: Date.now() });
-                            return qualities;
-                        }
-                    } catch (e) {
-                        console.warn(`[QualityDetector] Provider ${provider.name} error:`, e);
-                    }
-                }
-
-                console.warn("[QualityDetector] All providers failed.");
-
-            } else if (source === 'kuwo' || source === 'qq') {
-                qualities = await this.checkSayqzQualities(source, song.id);
-            }
-
-            this.cache.set(cacheKey, { qualities, timestamp: Date.now() });
-            return qualities;
-        } catch (error) {
-            console.error(`[QualityDetector] 失败:`, error);
-            return this.getDefaultQualities(source);
-        }
+    // Fix: Explicitly remove blur overlay (with delay to beat race conditions)
+    if (window.toggleSearchBlur) {
+        window.toggleSearchBlur(false);
+        // Backup: Ensure it stays off if focus events race
+        setTimeout(() => window.toggleSearchBlur(false), 200);
     }
 
-    async checkWyapiQualities(songId, apiUrl) {
-        const levels = [
-            { level: 'standard', tag: 'MP3', name: '标准音质' },
-            { level: 'higher', tag: 'MP3', name: '较高音质' },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质' },
-            { level: 'lossless', tag: 'FLAC', name: '无损音质' },
-            { level: 'hires', tag: 'Hi-Res', name: '高清无损' },
-            { level: 'jyeffect', tag: 'Surround', name: '高清臻音' },
-            { level: 'sky', tag: 'Spatial Audio', name: '沉浸环绕声' },
-            { level: 'dolby', tag: 'Dolby Atmos', name: '杜比全景声' },
-            { level: 'jymaster', tag: 'Master', name: '超清母带' }
-        ];
+    // Auto-Clear Input as requested
+    document.getElementById('searchInput').value = '';
+    document.getElementById('searchInput').blur(); // Ensure blur again just in case
 
-        const checkPromises = levels.map(async (q) => {
+    document.getElementById('song-list').innerHTML = '<div style="text-align:center;padding:20px;opacity:0.6"><i class="fas fa-spinner fa-spin"></i> 搜索中...</div>';
+
+    try {
+        let songs = [];
+        const targetSrc = forceSrc || state.src;
+        console.log(`正在搜索: ${targetSrc} - ${kw}`);
+
+        // --- 1. 网易云: 使用自建API (wy.omg666.eu.org) ---
+        if (targetSrc === 'netease') {
+            // 用户提示：恢复使用 CF Worker 进行网易云搜索
+            const d = await req(`${API_CF_WORKER}/v1/query/index.db?keywords=${encodeURIComponent(kw)}&limit=100`);
+            if (d) { songs = findSongArray(d); songs.forEach(s => s.source = 'netease'); }
+        }
+        // --- 2. QQ: 使用自建 Worker 代理官方接口 ---
+        else if (targetSrc === 'qq') {
             try {
-                // Also support API_CF_DIRECT (Direct) which needs 'br' and returns Array
-                const url = `${apiUrl}?id=${songId}&level=${q.level}&br=${q.level}`;
-                const res = await req(url);
-                let actualUrl = null;
+                // 调用 Worker 新增的 /qq/search 接口 (聚合请求 200 条 + 去重)
+                const res = await req(`${API_CF_WORKER}/qq/search?keywords=${encodeURIComponent(kw)}&page=1&limit=200`);
+                console.log("QQ Worker Search:", res);
 
-                if (typeof res === 'string' && res.startsWith('http')) actualUrl = res;
-                else if (res && Array.isArray(res.data) && res.data[0] && res.data[0].url) actualUrl = res.data[0].url;
-                else if (res) actualUrl = (res.url || res.data?.url);
-                if (actualUrl) actualUrl = actualUrl.replace(/^http:\/\//, 'https://'); // Force HTTPS for size check reliability
-
-                // Try to get size from API response (Support both Object and Array formats)
-                let sizeStrRaw = 0;
-                if (res && Array.isArray(res.data) && res.data[0]) sizeStrRaw = res.data[0].size || res.data[0].fileSize || 0;
-                else if (res) sizeStrRaw = res.size || res.data?.size || 0;
-
-                let size = 0;
-                if (sizeStrRaw) {
-                    let matchStr = sizeStrRaw.toString().replace(/,/g, '');
-                    const numMatch = matchStr.match(/(\d+(\.\d+)?)/);
-                    const numVal = numMatch ? parseFloat(numMatch[1]) : 0;
-                    const lowerStr = matchStr.toLowerCase();
-
-                    if (lowerStr.includes('gb')) size = numVal * 1024 * 1024 * 1024;
-                    else if (lowerStr.includes('mb')) size = numVal * 1024 * 1024;
-                    else if (lowerStr.includes('kb')) size = numVal * 1024;
-                    else {
-                        if (numVal > 1024 * 10) size = parseInt(numVal, 10);
-                        else size = parseInt(numVal, 10) * 1024 * 1024;
-                    }
+                let rawList = [];
+                // QQ musicu.fcg 接口返回结构: req_1.data.body.song.list
+                if (res && res.req_1 && res.req_1.data && res.req_1.data.body && res.req_1.data.body.song && res.req_1.data.body.song.list) {
+                    rawList = res.req_1.data.body.song.list;
+                }
+                // 兼容旧接口结构 (以防Worker未更新)
+                else if (res && res.data && res.data.song && res.data.song.list) {
+                    rawList = res.data.song.list;
                 }
 
-                if (actualUrl && actualUrl.length > 10) {
-                    // 1. Verify Real Quality from URL Parameter (Source of Truth)
-                    // The API returns the ACTUAL level in the url params, e.g. "...&level=standard"
-                    // We must use this to correct our label if we asked for 'dolby' but got 'standard'.
-                    // This fixes the issue where the user sees "Dolby" but the URL is actually Standard.
-                    let finalLevel = q.level;
-                    let finalName = q.name;
-                    let finalTag = q.tag;
-
-                    // 1. Verify Real Quality from URL Parameter (Source of Truth)
-                    // Support parsing 'level' OR 'br' from the URL (e.g. ...&br=lossless or ...&level=standard)
-                    const match = actualUrl.match(/[?&](?:level|br)=([^&]+)/);
-                    if (match && match[1]) {
-                        // match[1] is the capturing group for the value
-                        const realLevel = match[1];
-                        if (realLevel !== q.level) {
-                            // Find the config for the REAL level
-                            const correctConfig = levels.find(l => l.level === realLevel);
-                            if (correctConfig) {
-                                finalLevel = correctConfig.level;
-                                finalName = correctConfig.name;
-                                finalTag = correctConfig.tag;
-                            }
+                if (rawList.length > 0) {
+                    songs = rawList.map(item => {
+                        // 歌手名处理 (musicu: item.singer)
+                        let artistName = "未知歌手";
+                        if (item.singer && Array.isArray(item.singer)) {
+                            artistName = item.singer.map(s => s.name).join('/');
                         }
-                    }
 
-                    // Define probeUrl: Use Proxy if Direct Link to avoid CORS
-                    let probeUrl = actualUrl;
-                    if (probeUrl.includes('.music.126.net') || probeUrl.includes('.myqcloud.com') || probeUrl.includes('music.163.com')) {
-                        probeUrl = `${API_CF_WORKER}/util/download?url=${encodeURIComponent(probeUrl)}&filename=probe.mp3`;
-                    }
+                        // ID 和 封面 (兼容 musicu: item.mid / Mobile: item.songmid)
+                        const songId = item.mid || item.file?.media_mid || item.songmid;
 
-                    // Try to get size from HEAD request first
-                    if (!size || size === 0) {
-                        try {
-                            const controller = new AbortController();
-                            const timeoutId = setTimeout(() => controller.abort(), 2000);
-                            const headRes = await fetch(probeUrl, { method: 'HEAD', signal: controller.signal });
-                            clearTimeout(timeoutId);
-                            const len = headRes.headers.get('content-length');
-                            if (len) size = parseInt(len, 10);
-                        } catch (e) { }
-                    }
+                        // 专辑封面
+                        const albumMid = (item.album && item.album.mid) || item.albummid;
+                        const albumName = (item.album && item.album.name) || item.albumname || "未知专辑";
 
-                    // If HEAD failed (likely CORS or 405), try GET with Range or immediate abort
-                    if (!size || size === 0) {
-                        try {
-                            const controller = new AbortController();
-                            const timeoutId = setTimeout(() => controller.abort(), 2000);
-                            // Use probeUrl here too
-                            const getRes = await fetch(probeUrl, { method: 'GET', signal: controller.signal, headers: { 'Range': 'bytes=0-0' } });
-                            clearTimeout(timeoutId);
-                            const len = getRes.headers.get('content-length');
-                            if (len) size = -1; // Just mark as available if we got a 206/200
-                        } catch (e) { }
-                    }
+                        // 歌曲名
+                        const songName = item.name || item.title || item.songname;
 
+                        // 时长 (QQ返回的是秒，formatDuration通常需要毫秒)
+                        const duration = (item.interval ? item.interval * 1000 : 0) || item.dt || 0;
 
-                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : 'NaNMB';
+                        let picUrl = "";
+                        if (albumMid) {
+                            picUrl = `https://y.gtimg.cn/music/photo_new/T002R300x300M000${albumMid}.jpg`;
+                        }
 
-                    return {
-                        level: finalLevel,
-                        name: finalName,
-                        tag: finalTag,
-                        available: true,
-                        url: actualUrl,
-                        urlKey: actualUrl.split('?')[0],
-                        size: size,
-                        sizeStr: sizeMB
-                    };
-                }
-                return null;
-            } catch (e) {
-                return null;
-            }
-        });
-
-        const results = await Promise.all(checkPromises);
-        const validResults = results.filter(r => r !== null);
-
-        // URL Deduplication & Size Validation
-        const urlMap = new Map();
-        console.groupCollapsed(`[QualityDetector] ${songId} 检测结果(原始: ${validResults.length} 个)`);
-
-        // 1. Group by URL Key (Gather all levels pointing to same URL)
-        for (const q of validResults) {
-            if (!urlMap.has(q.urlKey)) {
-                urlMap.set(q.urlKey, {
-                    url: q.url,
-                    urlKey: q.urlKey,
-                    size: q.size,
-                    sizeStr: q.sizeStr,
-                    levels: [q.level],
-                    tags: [q]
-                });
-            } else {
-                const entry = urlMap.get(q.urlKey);
-                if (!entry.levels.includes(q.level)) entry.levels.push(q.level);
-                entry.tags.push(q);
-                // Update size if we found it in a later request logic
-                if ((!entry.size || entry.size === 0) && q.size > 0) {
-                    entry.size = q.size;
-                    entry.sizeStr = q.sizeStr;
-                }
-            }
-        }
-
-        // 2. Process Values into Unique List
-        const unique = [];
-        // const priorityOrder = ['jymaster', 'dolby', 'sky', 'jyeffect', 'hires', 'lossless', 'exhigh', 'higher', 'standard'];
-
-        for (const entry of urlMap.values()) {
-            // Determine the "True" name for this URL
-            // DEFAULT RULE: If multiple quality levels point to the SAME URL, assume it's the LOWEST quality in the group.
-            // This prevents "Standard" files from being labeled "Dolby" just because the API returned the same fallback URL for both.
-
-            const qualityHierarchy = ['standard', 'higher', 'exhigh', 'lossless', 'hires', 'jyeffect', 'sky', 'dolby', 'jymaster'];
-
-            // Sort standard->master (0->N). 0 is lowest quality.
-            // Sort standard->master (0->N). 0 is lowest quality.
-            entry.levels.sort((a, b) => qualityHierarchy.indexOf(a) - qualityHierarchy.indexOf(b));
-
-            // Default: Pick lowest quality as safe fallback
-            let bestLevel = entry.levels[0];
-
-            // ★ Priority Rule: If URL explicitly contains the level name, TRUST IT ★
-            // This ensures if URL says '&br=jymaster', we pick 'jymaster' even if it was also grouped with 'lossless'
-            for (const lvl of entry.levels) {
-                if (entry.url.includes(`br=${lvl}`) || entry.url.includes(`level=${lvl}`)) {
-                    bestLevel = lvl;
-                    // Also skip size check for explicit matches if we trust the API
-                    break;
-                }
-            }
-
-            // Size Validation Rules (Secondary Check)
-            // If we somehow didn't have 'standard' in the group but size is tiny (e.g. 3MB 'dolby'), downgrade it.
-            // Size Validation Rules (Secondary Check)
-            // Tier 1: Lossless/Master should be > 15MB (conservative, some FLACs are small but usually not <15MB for full songs)
-            if (entry.size > 0 && entry.size < 15 * 1024 * 1024) {
-                const losslessQualities = ['jymaster', 'dolby', 'sky', 'jyeffect', 'hires', 'lossless'];
-                if (losslessQualities.includes(bestLevel)) {
-                    console.log(`⚠️ Size Mismatch (Lossless): [${bestLevel}] is only ${entry.sizeStr}. Downgrading to ExHigh.`);
-                    bestLevel = 'exhigh'; // Downgrade to 320k first
-                }
-            }
-            // Tier 2: ExHigh (320k) should be > 3MB (Short songs can be ~4MB)
-            if (entry.size > 0 && entry.size < 3 * 1024 * 1024) {
-                if (bestLevel === 'exhigh') {
-                    console.log(`⚠️ Size Mismatch (ExHigh): [${bestLevel}] is only ${entry.sizeStr}. Downgrading to Standard.`);
-                    bestLevel = 'standard';
-                }
-            }
-
-            // Find the original tag object for the chosen level (or fallback)
-            let q = entry.tags.find(t => t.level === bestLevel);
-            if (!q) {
-                // If we forced a level (e.g. 'standard') that wasn't in list, create a synthetic one
-                q = { ...entry.tags[0], level: bestLevel, name: '标准音质', tag: 'MP3' };
-                // Fix map names if needed
-                if (bestLevel === 'higher') { q.name = '较高音质'; q.tag = 'MP3'; }
-                if (bestLevel === 'exhigh') { q.name = '极高音质'; q.tag = 'MP3'; }
-            }
-
-            // Update size info in the final object
-            q.size = entry.size;
-            q.sizeStr = entry.sizeStr;
-
-            unique.push(q);
-            console.log(`✅ Unique: [${q.level}] ${q.name} - ${q.sizeStr} `);
-        }
-
-        // 3. Final Sort by Size (Descending)
-        // This ensures the BIGGEST file (Master) is always first, then High-Res, then Standard
-        // 3. Final Sort by Size (Descending) + Priority Fallback
-        // This ensures the BIGGEST file (Master) is always first.
-        // If sizes are equal (e.g. 0/NaN), use Hierarchy Preference.
-        const qualityHierarchy = ['jymaster', 'dolby', 'sky', 'jyeffect', 'hires', 'lossless', 'exhigh', 'higher', 'standard'];
-
-        unique.sort((a, b) => {
-            // Force strict number conversion to avoid NaN issues
-            const sA = Number(a.size) || 0;
-            const sB = Number(b.size) || 0;
-            const sizeDiff = sB - sA;
-
-            // If valid size difference exists, use it
-            if (sizeDiff !== 0) return sizeDiff;
-
-            // Priority Sort (Index 0 = Best = First)
-            const idxA = qualityHierarchy.indexOf(a.level);
-            const idxB = qualityHierarchy.indexOf(b.level);
-
-            // Handle cases where level is not in hierarchy (push to end)
-            const safeA = idxA === -1 ? 999 : idxA;
-            const safeB = idxB === -1 ? 999 : idxB;
-
-            return safeA - safeB;
-        });
-
-        // 4. Final Deduplication by Name (Prevent multiple 'Standard' or same-label entries)
-        const finalUnique = [];
-        const seenNames = new Set();
-        for (const item of unique) {
-            if (!seenNames.has(item.name)) {
-                finalUnique.push(item);
-                seenNames.add(item.name);
-            } else {
-                console.log(`⚠️ Removing Duplicate Label: ${item.name} (${item.sizeStr})`);
-            }
-        }
-
-        console.groupEnd();
-
-        // ★ FIXED: Removed fallback to checkSayqzQualities
-        // The calling function (detectQualities) handles the fallback chain. 
-        // Returning [] here allows it to proceed to Priority 2 (Proxy) etc.
-        return finalUnique.length > 0 ? finalUnique : [];
-    }
-
-    async checkSayqzQualities(source, songId) {
-        const levels = [
-            { level: 'standard', tag: 'MP3', name: '标准音质', br: '128k' },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质', br: '320k' },
-            { level: 'lossless', tag: 'FLAC', name: '无损音质', br: 'flac' },
-            { level: 'hires', tag: 'Hi-Res', name: 'Hi-Res', br: 'flac24bit' }
-        ];
-
-        const checkPromises = levels.map(async (q) => {
-            const testUrl = `${API_SAYQZ}/?type=url&source=${source}&id=${songId}&br=${q.br}`;
-            try {
-                // 1. Try Normal HEAD (Works on Local/HTTP, or if Redirect is HTTPS)
-                const response = await fetch(testUrl, { method: 'HEAD' });
-
-                if (response.ok && response.url && !response.url.includes('error')) {
-                    const len = response.headers.get('content-length');
-                    let size = len ? parseInt(len, 10) : 0;
-                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '未知大小';
-
-                    // Check if final URL is HTTP but we are on HTTPS
-                    let finalUrl = response.url;
-                    if (window.location.protocol === 'https:' && finalUrl.startsWith('http:')) {
-                        // Upgrade known domains
-                        if (finalUrl.includes('qqmusic.qq.com')) finalUrl = finalUrl.replace('http:', 'https:');
-                        // Do NOT wrap in proxy if it causes 403
-                    }
-
-                    return { ...q, available: true, url: finalUrl, urlKey: finalUrl.split('?')[0], size: size, sizeStr: sizeMB };
-                }
-            } catch (e) {
-                // 2. Mixed Content / CORS Error Fallback
-                // Try opaque redirect check (confirms existence, but no size/url info)
-                try {
-                    const response = await fetch(testUrl, { method: 'HEAD', redirect: 'manual' });
-                    if (response.type === 'opaqueredirect' || response.status === 0) {
-                        // Authenticated existence
-                        // Return original URL (allow browser mixed content warning rather than broken 403)
                         return {
-                            ...q,
-                            available: true,
-                            url: testUrl,
-                            urlKey: testUrl, // Use request URL as key since we rely on it
-                            size: 0,
-                            sizeStr: '未知'
+                            id: songId,
+                            name: songName,
+                            artist: artistName,
+                            album: albumName,
+                            pic: picUrl,
+                            source: 'qq',
+                            duration: formatDuration(duration || 0)
                         };
-                    }
-                } catch (e2) { }
-            }
-            return null;
-        });
-
-        const results = await Promise.all(checkPromises);
-        const validResults = results.filter(r => r !== null);
-
-        // URL去重与"假无损"过滤逻辑 - v2
-        const urlMap = new Map();
-        const unique = [];
-        console.groupCollapsed(`[QualityDetector] Sayqz ${source} - ${songId} 检测结果`);
-
-        // 按质量等级排序：低 -> 高
-        const levelOrder = ['standard', 'exhigh', 'lossless', 'hires', 'sky', 'jyeffect', 'dolby', 'jymaster'];
-        validResults.sort((a, b) => levelOrder.indexOf(a.level) - levelOrder.indexOf(b.level));
-
-        const sizeMap = new Map();
-
-        for (const q of validResults) {
-            if (urlMap.has(q.urlKey)) {
-                const existing = urlMap.get(q.urlKey);
-                console.log(`❌ URL重复 (已过滤): [${q.level}] 与 [${existing.level}] URL相同`);
-                continue;
-            }
-
-            if (q.size && q.size > 0 && sizeMap.has(q.size)) {
-                const existing = sizeMap.get(q.size);
-                console.log(`❌ 虚假音质 (已过滤): [${q.level}] 大小(${q.sizeStr}) 与 [${existing.level}] 相同 -> 视为假源`);
-                continue;
-            }
-
-            urlMap.set(q.urlKey, q);
-            if (q.size > 0) sizeMap.set(q.size, q);
-            unique.push(q);
-            console.log(`✅ 有效: [${q.level}] ${q.name} - ${q.sizeStr} (Size: ${q.size})`);
-        }
-
-        unique.sort((a, b) => {
-            // Force strict number conversion
-            const sA = Number(a.size) || 0;
-            const sB = Number(b.size) || 0;
-            const sizeDiff = sB - sA;
-            if (sizeDiff !== 0) return sizeDiff;
-
-            // Fallback: Priority Sort
-            const idxA = levelOrder.indexOf(a.level);
-            const idxB = levelOrder.indexOf(b.level);
-            // Higher index in levelOrder = Better quality (based on array definition above)
-            return idxB - idxA;
-        });
-        console.groupEnd();
-
-        return unique.length > 0 ? unique : this.getDefaultQualities(source);
-    }
-
-    async checkGDStudioQualities(source, songId) {
-        const levels = [
-            { level: 'standard', tag: 'MP3', name: '标准音质', br: '128' },
-            { level: 'higher', tag: 'MP3', name: '较高音质', br: '192' },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质', br: '320' },
-            { level: 'lossless', tag: 'FLAC', name: '无损音质', br: '740' },
-            { level: 'hires', tag: 'Hi-Res', name: 'Hi-Res', br: '999' }
-        ];
-
-        const checkPromises = levels.map(async (q) => {
-            try {
-                // Use API_GDMUSIC here instead of API_BACKUP
-                const res = await req(`${API_GDMUSIC}?types=url&id=${songId}&source=${source}&br=${q.br}`);
-                if (res?.url && res.url.length > 10) {
-                    let size = 0;
-                    try {
-                        const headRes = await fetch(res.url, { method: 'HEAD' });
-                        const len = headRes.headers.get('content-length');
-                        if (len) size = parseInt(len, 10);
-                    } catch (e) { }
-
-                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '未知大小';
-                    return { ...q, available: true, url: res.url, urlKey: res.url.split('?')[0], size: size, sizeStr: sizeMB };
+                    });
+                } else {
+                    console.warn("QQ Search returned empty list");
                 }
-                return null;
-            } catch (e) { return null; }
-        });
-
-        const results = await Promise.all(checkPromises);
-        const validResults = results.filter(r => r !== null);
-
-        // URL去重与"假无损"过滤逻辑 - v2 (JOOX)
-        const urlMap = new Map();
-        const unique = [];
-        console.groupCollapsed(`[QualityDetector] GDStudio ${source} - ${songId} 检测结果`);
-
-        const levelOrder = ['standard', 'exhigh', 'lossless'];
-        validResults.sort((a, b) => levelOrder.indexOf(a.level) - levelOrder.indexOf(b.level));
-
-        const sizeMap = new Map();
-
-        for (const q of validResults) {
-            if (urlMap.has(q.urlKey)) continue;
-
-            if (q.size && q.size > 0 && sizeMap.has(q.size)) {
-                const existing = sizeMap.get(q.size);
-                console.log(`❌ 虚假音质 (已过滤): [${q.level}] 大小(${q.sizeStr}) 相同`);
-                continue;
+            } catch (e) {
+                console.error("QQ Worker Search Failed:", e);
+                document.getElementById('song-list').innerHTML = `<div style="text-align:center;padding:20px;opacity:0.6">QQ 搜索失败: ${e.message}</div>`;
             }
-
-            urlMap.set(q.urlKey, q);
-            if (q.size > 0) sizeMap.set(q.size, q);
-            unique.push(q);
-            console.log(`✅ 有效: [${q.level}] ${q.name} - ${q.sizeStr}`);
+        }
+        // --- 3. 兜底 (其他情况) ---
+        else {
+            const d = await req(`${API_BACKUP}?types=search&count=50&source=${targetSrc}&name=${encodeURIComponent(kw)}`);
+            if (d) { songs = findSongArray(d); songs.forEach(s => s.source = targetSrc); }
         }
 
-        unique.sort((a, b) => {
-            const sA = Number(a.size) || 0;
-            const sB = Number(b.size) || 0;
-            const sizeDiff = sB - sA;
-            if (sizeDiff !== 0) return sizeDiff;
-
-            // Fallback: Priority Sort (Higher index = Better)
-            const idxA = levelOrder.indexOf(a.level);
-            const idxB = levelOrder.indexOf(b.level);
-            return idxB - idxA;
-        });
-        console.groupEnd();
-
-        return unique.length > 0 ? unique : this.getDefaultQualities(source);
-    }
-
-    async checkXuanQualities(songId) {
-        // Xuanluoge: GET /api.php?miss=getMusicUrl&id=...&level=...
-        const levels = [
-            { level: 'jymaster', tag: 'Master', name: '超清母带' },
-            { level: 'sky', tag: 'Spatial', name: '沉浸环绕声' },
-            { level: 'lossless', tag: 'FLAC', name: '无损音质' },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质' },
-            { level: 'standard', tag: 'MP3', name: '标准音质' }
-        ];
-
-        // Similar deduplication logic as GD/Sayqz...
-        const checkPromises = levels.map(async (q) => {
-            try {
-                const res = await req(`${API_XUAN}?miss=getMusicUrl&id=${songId}&level=${q.level}`, { quiet: true });
-                if (res && res.data && res.data[0] && res.data[0].url) {
-                    let url = res.data[0].url.replace('http://', 'https://');
-                    let sizeStrRaw = res.data[0].size || 0;
-                    let size = 0;
-
-                    if (sizeStrRaw) {
-                        let matchStr = sizeStrRaw.toString().replace(/,/g, '');
-                        const numMatch = matchStr.match(/(\d+(\.\d+)?)/);
-                        const numVal = numMatch ? parseFloat(numMatch[1]) : 0;
-                        const lowerStr = matchStr.toLowerCase();
-
-                        if (lowerStr.includes('gb')) size = numVal * 1024 * 1024 * 1024;
-                        else if (lowerStr.includes('mb')) size = numVal * 1024 * 1024;
-                        else if (lowerStr.includes('kb')) size = numVal * 1024;
-                        else {
-                            // 如果没有任何单位，且数字本身就很大，说明就是 bytes
-                            if (numVal > 1024 * 10) size = parseInt(numVal, 10);
-                            else size = parseInt(numVal, 10) * 1024 * 1024; // 假设无单位的小于 1000 的数字是省略了 MB
-                        }
-                    }
-
-                    if (!size || size === 0) {
-                        try {
-                            const probeSize = await this.probeUrl(url);
-                            if (probeSize > 0) size = probeSize;
-                        } catch (e) { }
-                    }
-
-                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '未知大小';
-                    return { ...q, available: true, url: url, urlKey: url.split('?')[0], size: size, sizeStr: sizeMB };
-                }
-                return null;
-            } catch (e) { return null; }
-        });
-
-        const results = await Promise.all(checkPromises);
-        let validResults = results.filter(r => r !== null);
-
-        const urlMap = new Map();
-        const sizeMap = new Map();
-        const unique = [];
-
-        for (const r of validResults) {
-            if (urlMap.has(r.urlKey)) continue;
-            if (r.size && r.size > 0 && sizeMap.has(r.size)) {
-                console.log(`❌ [QualityDetector] 虚假音质 (已过滤 xuan): [${r.level}] 大小(${r.sizeStr}) 相同`);
-                continue;
+        // 渲染结果
+        if (songs.length > 0) {
+            const validSongs = songs.filter(s => s.id && s.name);
+            if (validSongs.length > 0) {
+                fmtList(validSongs, 'discover');
+            } else {
+                document.getElementById('song-list').innerHTML = '<div style="text-align:center;padding:20px;opacity:0.6">数据解析为空 (格式不兼容)</div>';
             }
-            urlMap.set(r.urlKey, r);
-            if (r.size > 0) sizeMap.set(r.size, r);
-            unique.push(r);
+        } else {
+            document.getElementById('song-list').innerHTML = '<div style="text-align:center;padding:20px;opacity:0.6">未找到相关歌曲</div>';
         }
 
-        // 定义音质权重：jymaster > dolby > sky > jyeffect > hires > lossless > exhigh > higher > standard
-        const qWeight = { jymaster: 10, dolby: 9, sky: 8, jyeffect: 7, hires: 6, lossless: 5, exhigh: 4, higher: 3, standard: 2 };
-        
-        // 按权重从高到低排序打印日志
-        unique.sort((a, b) => (qWeight[b.level] || 0) - (qWeight[a.level] || 0));
-        unique.forEach(r => {
-            // 1. 先打印对应的原始响应数据 (带上识别标签)
-            console.log(`📡 [API Response] /v1/core/fetch.bin [${r.name}${r.level ? ' - ' + r.level : ''}]:`, r.raw);
-            // 2. 再紧跟打印 Analysis 结论
-            console.log(`✅ [Analysis] Channel-A: [${r.level}] - ${r.sizeStr}`);
-        });
-
-        // 最终返回也按同一逻辑排序
-        return unique.length > 0 ? unique : [];
-    }
-
-    async checkRrvennQualities(songId) {
-        const levels = [
-            { level: 'jymaster', tag: 'Master', name: '超清母带' },
-            { level: 'dolby', tag: 'Dolby Atmos', name: '杜比全景声' },
-            { level: 'sky', tag: 'Spatial Audio', name: '沉浸环绕声' },
-            { level: 'jyeffect', tag: 'Surround', name: '高清臻音' },
-            { level: 'hires', tag: 'Hi-Res', name: '高清无损' },
-            { level: 'lossless', tag: 'FLAC', name: '无损音质' },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质' },
-            { level: 'higher', tag: 'MP3', name: '较高音质' },
-            { level: 'standard', tag: 'MP3', name: '标准音质' }
-        ];
-
-        const checkPromises = levels.map(async (q) => {
-            try {
-                const res = await req(`${API_RRVENN}?action=music&url=${songId}&id=${songId}&level=${q.level}&type=json`, { quiet: true });
-
-                if (res && res.url) {
-                    let url = res.url.replace('http://', 'https://');
-                    let size = 0;
-
-                    if (res.size) {
-                        let matchStr = res.size.toString().replace(/,/g, '');
-                        const numMatch = matchStr.match(/(\d+(\.\d+)?)/);
-                        const numVal = numMatch ? parseFloat(numMatch[1]) : 0;
-                        const lowerStr = matchStr.toLowerCase();
-
-                        if (lowerStr.includes('gb')) size = numVal * 1024 * 1024 * 1024;
-                        else if (lowerStr.includes('mb')) size = numVal * 1024 * 1024;
-                        else if (lowerStr.includes('kb')) size = numVal * 1024;
-                        else {
-                            if (numVal > 1024 * 10) size = parseInt(numVal, 10);
-                            else size = parseInt(numVal, 10) * 1024 * 1024;
-                        }
-                    }
-
-                    // 如果体积还没计算出来，使用 probeUrl 主动探查一次补充
-                    if (!size || size === 0) {
-                        try {
-                            const probeSize = await this.probeUrl(url);
-                            if (probeSize > 0) size = probeSize;
-                        } catch (e) { }
-                    }
-
-                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : (res.size || '未知大小');
-                    return { ...q, available: true, url: url, urlKey: url.split('?')[0], size: size, sizeStr: sizeMB, raw: res };
-                }
-                return null;
-            } catch (e) { return null; }
-        });
-
-        const results = await Promise.all(checkPromises);
-        let validResults = results.filter(r => r !== null);
-
-        // 重构去重逻辑，参考 checkWyapiQualities 的先进排重机制
-        const urlMap = new Map();
-        const sizeMap = new Map();
-        const unique = [];
-
-        for (const r of validResults) {
-            // URL 级重复拦截
-            if (urlMap.has(r.urlKey)) continue;
-
-            // 假无损拦截 (如果某高级音质的大小甚至不如普通音质或完全一样)
-            if (r.size && r.size > 0 && sizeMap.has(r.size)) {
-                console.log(`❌ [QualityDetector] 虚假音质 (已过滤 rrvenn): [${r.level}] 大小(${r.sizeStr}) 相同`);
-                continue;
-            }
-
-            urlMap.set(r.urlKey, r);
-            if (r.size > 0) sizeMap.set(r.size, r);
-            unique.push(r);
-        }
-
-        // 按音质等级权重从高到低排序打印日志
-        const qWeight = { jymaster: 10, dolby: 9, sky: 8, jyeffect: 7, hires: 6, lossless: 5, exhigh: 4, higher: 3, standard: 2 };
-        unique.sort((a, b) => (qWeight[b.level] || 0) - (qWeight[a.level] || 0));
-        unique.forEach(r => {
-            console.log(`📡 [API Response] /v1/core/fetch.bin [${r.name}${r.level ? ' - ' + r.level : ''}]:`, r.raw);
-            console.log(`✅ [Analysis] Channel-B: [${r.level}] - ${r.sizeStr}`);
-        });
-
-        // 最终按此排序结果返回
-        return unique.length > 0 ? unique : [];
-    }
-
-    async checkCyruiQualities(songId) {
-        // Cyrui: GET /getMusicUrl.php?id=...&level=...
-        const levels = [
-            { level: 'jymaster', tag: 'Master', name: '超清母带' },
-            { level: 'sky', tag: 'Spatial', name: '沉浸环绕声' },
-            { level: 'lossless', tag: 'FLAC', name: '无损音质' },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质' },
-            { level: 'standard', tag: 'MP3', name: '标准音质' }
-        ];
-
-        const checkPromises = levels.map(async (q) => {
-            try {
-                const res = await req(`${API_CYRUI}/getMusicUrl.php?id=${songId}&level=${q.level}`, { quiet: true });
-                if (res && res.data && res.data[0] && res.data[0].url) {
-                    let url = res.data[0].url.replace('http://', 'https://');
-                    let sizeStrRaw = res.data[0].size || 0;
-                    let size = 0;
-
-                    if (sizeStrRaw) {
-                        let matchStr = sizeStrRaw.toString().replace(/,/g, '');
-                        const numMatch = matchStr.match(/(\d+(\.\d+)?)/);
-                        const numVal = numMatch ? parseFloat(numMatch[1]) : 0;
-                        const lowerStr = matchStr.toLowerCase();
-
-                        if (lowerStr.includes('gb')) size = numVal * 1024 * 1024 * 1024;
-                        else if (lowerStr.includes('mb')) size = numVal * 1024 * 1024;
-                        else if (lowerStr.includes('kb')) size = numVal * 1024;
-                        else {
-                            if (numVal > 1024 * 10) size = parseInt(numVal, 10);
-                            else size = parseInt(numVal, 10) * 1024 * 1024;
-                        }
-                    }
-
-                    if (!size || size === 0) {
-                        try {
-                            const probeSize = await this.probeUrl(url);
-                            if (probeSize > 0) size = probeSize;
-                        } catch (e) { }
-                    }
-
-                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '未知大小';
-                    return { ...q, available: true, url: url, urlKey: url.split('?')[0], size: size, sizeStr: sizeMB };
-                }
-                return null;
-            } catch (e) { return null; }
-        });
-
-        const results = await Promise.all(checkPromises);
-        let validResults = results.filter(r => r !== null);
-
-        const urlMap = new Map();
-        const sizeMap = new Map();
-        const unique = [];
-
-        for (const r of validResults) {
-            if (urlMap.has(r.urlKey)) continue;
-            if (r.size && r.size > 0 && sizeMap.has(r.size)) {
-                console.log(`❌ [QualityDetector] 虚假音质 (已过滤 cyrui): [${r.level}] 大小(${r.sizeStr}) 相同`);
-                continue;
-            }
-            urlMap.set(r.urlKey, r);
-            if (r.size > 0) sizeMap.set(r.size, r);
-            unique.push(r);
-        }
-
-        // 按音质等级权重排序输出日志
-        const qWeight = { jymaster: 10, dolby: 9, sky: 8, jyeffect: 7, hires: 6, lossless: 5, exhigh: 4, higher: 3, standard: 2 };
-        unique.sort((a, b) => (qWeight[b.level] || 0) - (qWeight[a.level] || 0));
-        unique.forEach(r => {
-            console.log(`📡 [API Response] /v1/core/fetch.bin [${r.name}${r.level ? ' - ' + r.level : ''}]:`, r.raw);
-            console.log(`✅ [Analysis] Channel-C: [${r.level}] - ${r.sizeStr}`);
-        });
-
-        return unique.length > 0 ? unique : [];
-    }
-
-    async checkDirectQualities(songId) {
-        // CF Direct: https://wy.omg666.eu.org/song/url?id=xxx&br=xxx
-        // Response: { code: 200, data: [ { url, br, size, type, ... } ] }
-        const levels = [
-            { level: 'standard', tag: 'MP3', name: '标准音质', br: 'standard' },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质', br: 'exhigh' },
-            { level: 'lossless', tag: 'FLAC', name: '无损音质', br: 'lossless' },
-            { level: 'hires', tag: 'Hi-Res', name: '高清无损', br: 'hires' },
-            { level: 'jyeffect', tag: 'Master', name: '超清母带', br: 'jymaster' }
-        ];
-
-        const checkPromises = levels.map(async (q) => {
-            try {
-                const res = await req(`${API_CF_DIRECT}?id=${songId}&br=${q.br}`);
-                if (res && res.data && res.data[0] && res.data[0].url) {
-                    let actualUrl = res.data[0].url;
-                    if (actualUrl.includes('http://')) actualUrl = actualUrl.replace('http://', 'https://');
-
-                    let sizeStrRaw = res.data[0].size || 0;
-                    let size = 0;
-
-                    if (sizeStrRaw) {
-                        let matchStr = sizeStrRaw.toString().replace(/,/g, '');
-                        const numMatch = matchStr.match(/(\d+(\.\d+)?)/);
-                        const numVal = numMatch ? parseFloat(numMatch[1]) : 0;
-                        const lowerStr = matchStr.toLowerCase();
-
-                        if (lowerStr.includes('gb')) size = numVal * 1024 * 1024 * 1024;
-                        else if (lowerStr.includes('mb')) size = numVal * 1024 * 1024;
-                        else if (lowerStr.includes('kb')) size = numVal * 1024;
-                        else {
-                            if (numVal > 1024 * 10) size = parseInt(numVal, 10);
-                            else size = parseInt(numVal, 10) * 1024 * 1024;
-                        }
-                    }
-
-                    if (!size || size === 0) {
-                        try {
-                            const probeSize = await this.probeUrl(actualUrl);
-                            if (probeSize > 0) size = probeSize;
-                        } catch (e) { }
-                    }
-
-                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '未知大小';
-                    return { ...q, available: true, url: actualUrl, urlKey: actualUrl.split('?')[0], size: size, sizeStr: sizeMB };
-                }
-                return null;
-            } catch (e) { return null; }
-        });
-
-        const results = await Promise.all(checkPromises);
-        let validResults = results.filter(r => r !== null);
-
-        const urlMap = new Map();
-        const sizeMap = new Map();
-        const unique = [];
-
-        for (const r of validResults) {
-            if (urlMap.has(r.urlKey)) continue;
-            if (r.size && r.size > 0 && sizeMap.has(r.size)) {
-                console.log(`❌ [QualityDetector] 虚假音质 (已过滤 direct): [${r.level}] 大小(${r.sizeStr}) 相同`);
-                continue;
-            }
-            urlMap.set(r.urlKey, r);
-            if (r.size > 0) sizeMap.set(r.size, r);
-            unique.push(r);
-            console.log(`✅ [QualityDetector] direct 有效: [${r.level}] ${r.name} - ${r.sizeStr} (Size: ${r.size})`);
-        }
-
-        unique.sort((a, b) => {
-            const sA = Number(a.size) || 0;
-            const sB = Number(b.size) || 0;
-            return sB - sA;
-        });
-
-        return unique.length > 0 ? unique : [];
-    }
-
-    getDefaultQualities(source) {
-        if (source === 'netease' || source === 'netease_album') {
-            return [
-                { level: 'standard', tag: 'MP3', name: '标准音质', available: true },
-                { level: 'exhigh', tag: 'MP3', name: '极高音质', available: true },
-                { level: 'lossless', tag: 'FLAC', name: '无损音质', available: true }
-            ];
-        }
-        return [
-            { level: 'standard', tag: 'MP3', name: '标准音质', available: true },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质', available: true }
-        ];
-    }
-
-    clearCache() {
-        this.cache.clear();
+    } catch (e) {
+        console.error("搜索出错:", e);
+        document.getElementById('song-list').innerHTML = `<div style="text-align:center;padding:20px;opacity:0.6">搜索请求失败: ${e.message}</div>`;
     }
 }
 
-// 创建全局实例
-const qualityDetector = new QualityDetector();
-window.qualityDetector = qualityDetector; // Explicitly expose to window
+async function doSmartAlbumSearch(kw, targetArtist, targetAlbum) {
+    if (!kw) return;
+    switchView('discover'); document.getElementById('searchInput').value = targetAlbum + " (专辑)";
+    document.getElementById('song-list').innerHTML = '<div style="text-align:center;padding:20px;opacity=0.6">正在解析专辑...</div>';
+    const queryName = targetArtist + " " + kw;
+    const d = await req(`${API_CF_WORKER}/v1/query/index.db?keywords=${encodeURIComponent(queryName)}&limit=40`);
+    const rawList = findSongArray(d);
+    const processedList = processRawSongs(rawList);
+    const cleanList = processedList.filter(s => {
+        const tAlbum = String(targetAlbum).toLowerCase().trim();
+        const sAlbum = String(s.album).toLowerCase().trim();
+        return sAlbum.includes(tAlbum) || tAlbum.includes(sAlbum);
+    });
+    if (cleanList.length > 0) { state.list = cleanList; state.pg.discover = 0; renderList('discover'); }
+    else { if (kw === queryName) document.getElementById('song-list').innerHTML = '<div style="text-align:center;padding:20px;opacity=0.6">未找到专辑内容</div>'; else doSmartAlbumSearch(kw, "", targetAlbum); }
+}
+
+async function loadSheet(id, retry = 0) {
+    if (!/^\d+$/.test(id)) { await doSearch(id, 'netease'); return; }
+    document.getElementById('song-list').innerHTML = '<div style="text-align:center;padding:20px;opacity=0.6">加载榜单中...</div>';
+    try {
+        const d = await req(`${API_CF_WORKER}/v1/schema/latest.json?id=${id}&_t=${Date.now()}`);
+        const songs = findSongArray(d);
+        if (songs.length === 0 && retry < 3) {
+            document.getElementById('song-list').innerHTML = `<div style="text-align:center;padding:20px;opacity=0.6">网络波动，正在重试 (${retry + 1}/3)...</div>`;
+            setTimeout(() => loadSheet(id, retry + 1), 1500); return;
+        }
+        songs.forEach(s => s.source = 'netease');
+        if (songs.length > 0) fmtList(songs, 'discover'); else document.getElementById('song-list').innerHTML = '<div style="text-align:center;padding:20px;opacity=0.6">榜单内容为空</div>';
+    } catch (e) { document.getElementById('song-list').innerHTML = '<div style="text-align:center;padding:20px;opacity=0.6">加载出错</div>'; }
+}
+
+async function loadToplists() {
+    if (state.toplistLoaded) return;
+    const container = document.getElementById('toplist-grid');
+    container.innerHTML = '<div style="grid-column:1/-1;text-align:center;opacity=0.6;padding:40px"><i class="fas fa-spinner fa-spin"></i> 正在获取榜单数据...</div>';
+    try {
+        const res = await req(`${API_CF_WORKER}/v1/index/rank.json?_t=${Date.now()}`);
+        if (!res) { container.innerHTML = '<div style="grid-column:1/-1;text-align:center;opacity=0.6">网络请求失败</div>'; return; }
+        const list = res.list || [];
+        if (list.length > 0) {
+            state.toplistLoaded = true;
+            container.innerHTML = list.map(item => {
+                let picUrl = item.coverImgUrl || item.picUrl || '';
+                if (picUrl && picUrl.startsWith('http:')) picUrl = picUrl.replace('http:', 'https:');
+                const freq = item.updateFrequency || '';
+                return `<div class="tile" style="--img: url('${picUrl}')" onclick="openToplistInternal('${item.id}', '${item.name}')">
+                            <div class="tile-text">${item.name}</div>${freq ? `<div class="tile-badge">${freq}</div>` : ''}</div>`;
+            }).join('');
+        } else container.innerHTML = '<div style="grid-column:1/-1;text-align:center;opacity=0.6">暂无榜单数据</div>';
+    } catch (e) { container.innerHTML = '<div style="grid-column:1/-1;text-align:center;opacity=0.6">榜单加载失败</div>'; }
+}
+
+async function openToplistInternal(id, name, retry = 0) {
+    document.getElementById('toplist-index').style.display = 'none';
+    document.getElementById('toplist-detail').style.display = 'block';
+    document.getElementById('toplist-name-display').innerText = name || '榜单详情';
+    document.getElementById('toplist-songs-container').innerHTML = '<div style="text-align:center;padding:40px;opacity=0.6"><i class="fas fa-spinner fa-spin"></i> 正在加载歌曲...</div>';
+    try {
+        const d = await req(`${API_CF_WORKER}/v1/schema/latest.json?id=${id}&_t=${Date.now()}`);
+        const songs = findSongArray(d);
+        if (songs.length === 0 && retry < 3) {
+            document.getElementById('toplist-songs-container').innerHTML = `<div style="text-align:center;padding:40px;opacity=0.6"><i class="fas fa-sync fa-spin"></i> 内容为空，正在第 ${retry + 1} 次重试...</div>`;
+            setTimeout(() => openToplistInternal(id, name, retry + 1), 1500); return;
+        }
+        if (songs.length > 0) {
+            songs.forEach(s => s.source = 'netease');
+            state.list = processRawSongs(songs); state.pg.toplist = 0; renderList('toplist');
+        } else document.getElementById('toplist-songs-container').innerHTML = '<div style="text-align:center;padding:20px;opacity=0.6">榜单内容为空</div>';
+    } catch (e) { document.getElementById('toplist-songs-container').innerHTML = '<div style="text-align:center;padding:20px;opacity=0.6">加载失败，请重试</div>'; }
+}
+
+async function loadPageDetails(slice) {
+    const tasks = slice.map(async (s) => {
+        if (s.source === 'netease' || s.source === 'netease_album') {
+            if (s.pic && s.pic.includes('http') && s.duration !== "00:00") return;
+            try {
+                // Priority 1: Cloudflare Worker (Guest Mode)
+                const res = await req(`${API_CF_WORKER}/v1/data/song_detail.bin?id=${s.id}`);
+                const songData = (res.songs && res.songs[0]) ? res.songs[0] : res;
+
+                let coverUrl = (songData.al && songData.al.picUrl) || (songData.album && songData.album.picUrl) || songData.pic || "";
+                let duration = songData.dt || songData.duration || 0;
+
+                if (!coverUrl && !duration) throw new Error("Worker data empty or invalid");
+
+                if (duration) { s.duration = formatDuration(duration); const timeEl = document.getElementById(`time-${s.id}`); if (timeEl) timeEl.innerText = s.duration; }
+                if (coverUrl) { s.pic = coverUrl.replace(/^http:\/\//, 'https://'); const imgEl = document.getElementById(`cover-${s.id}`); if (imgEl) { imgEl.src = s.pic; imgEl.classList.add('loaded'); } }
+            } catch (err) {
+                // 如果 Worker 获取不到就算了，后续播放时会尝试解析
+                console.warn(`Worker Metadata info not found for ${s.id}`);
+            }
+        }
+        else if (!s.pic || s.pic.includes("Cb69B9")) {
+            const match = await smartMatchNetease(s.name, s.artist);
+            if (match && match.pic) { s.pic = match.pic; s.netease_id = match.id; const imgEl = document.getElementById(`cover-${s.id}`); if (imgEl) { imgEl.src = s.pic; imgEl.classList.add('loaded'); } }
+        }
+    }); await Promise.all(tasks);
+}
+
+// ========== 歌手功能 (Refactored for Pagination) ==========
+async function loadArtistList(resetPage = false) {
+    const type = document.getElementById('artist-type-filter').value;
+    const area = document.getElementById('artist-area-filter').value;
+    const initial = document.getElementById('artist-initial-filter').value;
+
+    // 如果筛选条件变了，重置 offset
+    if (resetPage || !state.artistList) {
+        state.artistList = {
+            all: [], // 缓存当前页数据
+            offset: 0, // 当前偏移量
+            limit: 32, // 固定每页32
+            currentFilters: { type, area, initial } // 记录当前筛选
+        };
+    } else {
+        // 检查筛选条件是否变化，如果变化则强制重置
+        const f = state.artistList.currentFilters;
+        if (f.type !== type || f.area !== area || f.initial !== initial) {
+            state.artistList.offset = 0;
+            state.artistList.currentFilters = { type, area, initial };
+        }
+    }
+
+    state.artistFilters = { type, area, initial };
+    const container = document.getElementById('artists-grid');
+
+    // 显示骨架屏
+    container.innerHTML = renderArtistSkeleton(32);
+    document.getElementById('pg-artists').style.display = 'none'; // 加载时隐藏分页
+
+    try {
+        const limit = state.artistList.limit;
+        const offset = state.artistList.offset;
+        const res = await req(`${API_CF_WORKER}/v1/index/artist.bin?type=${type}&area=${area}&initial=${initial}&limit=${limit}&offset=${offset}`);
+
+        if (res && res.artists && res.artists.length > 0) {
+            state.artistList.all = res.artists; // 仅保存当前页数据
+            // 渲染Tiles
+            renderArtistTiles(res.artists);
+            // 更新分页控件
+            updateArtistPagination(res.more);
+        } else {
+            container.innerHTML = '<div style="grid-column: 1 / -1; text-align:center;opacity:0.6;padding:40px">暂无歌手数据</div>';
+            document.getElementById('pg-artists').style.display = 'none';
+        }
+    } catch (e) {
+        console.error(e);
+        container.innerHTML = '<div style="grid-column: 1 / -1; text-align:center;opacity:0.6;padding:40px">加载失败，请重试</div>';
+    }
+}
+
+async function loadArtistDetail(artistId, artistName) {
+    // 1. 切换视图
+    document.getElementById('artists-list-view').style.display = 'none';
+    document.getElementById('artist-detail-view').style.display = 'block';
+    document.getElementById('album-detail-view').style.display = 'none';
+
+    state.currentArtist = { id: artistId, name: artistName };
+
+    // 2. 显示骨架屏
+    const headerSection = document.querySelector('#artist-detail-view .artist-header');
+    headerSection.innerHTML = `
+                <div class="artist-bg-layer">
+                    <div class="skeleton" style="width:100%;height:100%;border-radius:0"></div>
+                </div>
+                <div class="artist-info-content">
+                    <div class="artist-avatar-wrapper">
+                        <div class="skeleton" style="width:100%;height:100%"></div>
+                    </div>
+                    <div class="artist-text-info">
+                        <div class="skeleton skeleton-line long" style="margin-bottom:10px"></div>
+                        <div class="skeleton skeleton-line medium" style="margin-bottom:10px"></div>
+                        <div class="skeleton skeleton-line short"></div>
+                    </div>
+                </div>
+            `;
+
+    const songsContainer = document.getElementById('artist-songs-container');
+    const albumsContainer = document.getElementById('artist-albums-grid');
+    const introContainer = document.getElementById('artist-introduction');
+    songsContainer.innerHTML = renderSongListSkeleton(10);
+    albumsContainer.innerHTML = '';
+    introContainer.innerHTML = '';
+
+    try {
+        const res = await req(`${API_CF_WORKER}/v1/data/artist_meta.bin?id=${artistId}`);
+
+        if (res && res.artist) {
+            const artist = res.artist;
+            const picUrl = (artist.picUrl || artist.img1v1Url || 'https://i.imgs.ovh/2025/11/25/Cb69B9.jpeg').replace(/^http:/, 'https:');
+
+            headerSection.innerHTML = `
+                        <div class="artist-bg-layer">
+                            <img src="${picUrl}" class="artist-bg-img" alt="bg">
+                        </div>
+                        <div class="artist-info-content">
+                            <div class="artist-avatar-wrapper">
+                                <img src="${picUrl}" class="artist-avatar-img" alt="${artist.name}">
+                            </div>
+                            <div class="artist-text-info">
+                                <h1 id="artist-name-title" class="artist-name">${artist.name || artistName}</h1>
+                                <div id="artist-alias-tags" class="artist-alias">
+                                    ${artist.alias && artist.alias.length > 0 ?
+                    artist.alias.map(a => `<span class="artist-alias-tag">${a}</span>`).join('') :
+                    ''
+                }
+                                </div>
+                                <div id="artist-brief-desc" class="artist-brief">${artist.briefDesc || ''}</div>
+                            </div>
+                        </div>
+                    `;
+        }
+
+        if (res && res.hotSongs) {
+            const songs = res.hotSongs.map(s => ({ ...s, source: 'netease' }));
+            state.list = processRawSongs(songs);
+            state.pg['artist-songs'] = 0;
+            renderArtistSongs();
+        } else {
+            songsContainer.innerHTML = '<div style="text-align:center;opacity:0.6;padding:20px">暂无热门单曲</div>';
+        }
+
+        await loadArtistAlbums(artistId);
+
+        const descRes = await req(`${API_CF_WORKER}/v1/data/artist_desc.bin?id=${artistId}`);
+        if (descRes && descRes.introduction && descRes.introduction.length > 0) {
+            introContainer.innerHTML = descRes.introduction.map(intro => `
+                        <div class="intro-section">
+                            <h3>${intro.ti || '简介'}</h3>
+                            <p>${intro.txt || ''}</p>
+                        </div>
+                    `).join('');
+        } else {
+            introContainer.innerHTML = '<div style="text-align:center;opacity:0.6;padding:40px">暂无艺人介绍</div>';
+        }
+
+        switchArtistTab('songs');
+
+    } catch (e) {
+        console.error('加载歌手详情失败:', e);
+        songsContainer.innerHTML = '<div style="text-align:center;opacity:0.6;padding:20px">加载失败，请重试</div>';
+    }
+}
+
+
+async function loadArtistAlbums(artistId, reset = false) {
+    const albumsContainer = document.getElementById('artist-albums-grid');
+    const pgContainer = document.getElementById('pg-artist-albums');
+    const pgInfo = document.getElementById('pg-info-artist-albums');
+
+    if (reset || !state.artistAlbums || state.artistAlbums.id !== artistId) {
+        state.artistAlbums = {
+            id: artistId,
+            offset: 0,
+            limit: 32, // 4行 x 8列
+            all: [], // 缓存当前页
+            total: 0
+        };
+    }
+
+    if (state.artistAlbums.all.length === 0) {
+        albumsContainer.innerHTML = renderArtistSkeleton(32);
+        pgContainer.style.display = 'none';
+    }
+
+    try {
+        const limit = state.artistAlbums.limit;
+        const offset = state.artistAlbums.offset;
+        const res = await req(`${API_CF_WORKER}/v1/data/album_list.bin?id=${artistId}&limit=${limit}&offset=${offset}`);
+
+        if (res && res.hotAlbums && res.hotAlbums.length > 0) {
+            const html = res.hotAlbums.map(album => {
+                const picUrl = (album.picUrl || album.blurPicUrl || '').replace(/^http:/, 'https:');
+                return `<div class="tile lazy-loading" 
+                            style="--img: url('${PLACEHOLDER_IMG}')" 
+                            data-lazy-img="${picUrl}"
+                            onclick="loadAlbumDetail(${album.id}, '${(album.name || '').replace(/'/g, "\\'")}', ${artistId})">
+                            <div class="tile-text">${album.name}</div>
+                            <div class="tile-badge">${formatDate(album.publishTime)}</div>
+                            <div class="tile-count-badge">${album.size}首</div>
+                        </div>`;
+            }).join('');
+
+            albumsContainer.innerHTML = html;
+
+            const currentPage = Math.floor(offset / limit) + 1;
+            pgInfo.innerText = `第 ${currentPage} 页`;
+            pgContainer.style.display = 'flex';
+
+            setTimeout(() => observeLazyTiles(), 100);
+
+        } else {
+            albumsContainer.innerHTML = '<div style="grid-column: 1 / -1; text-align:center;opacity:0.6;padding:40px">暂无专辑数据</div>';
+            if (offset === 0) {
+                pgContainer.style.display = 'none';
+            } else {
+                const currentPage = Math.floor(offset / limit) + 1;
+                pgInfo.innerText = `第 ${currentPage} 页 (End)`;
+                pgContainer.style.display = 'flex';
+            }
+        }
+    } catch (e) {
+        console.error('加载专辑失败:', e);
+        albumsContainer.innerHTML = '<div style="grid-column: 1 / -1; text-align:center;opacity:0.6;padding:40px">加载失败，请重试</div>';
+        if (state.artistAlbums.offset > 0) {
+            pgContainer.style.display = 'flex';
+        } else {
+            pgContainer.style.display = 'none';
+        }
+    }
+}
+
+async function loadAlbumDetail(albumId, albumName, artistId) {
+    document.getElementById('artist-detail-view').style.display = 'none';
+    document.getElementById('album-detail-view').style.display = 'block';
+    document.getElementById('album-name-display').innerText = albumName;
+
+    state.currentAlbum = { id: albumId, name: albumName, artistId, songs: [] };
+    state.pg['album-songs'] = 0; // 重置页码
+
+    const container = document.getElementById('album-songs-container');
+    container.innerHTML = renderSongListSkeleton(10);
+    document.getElementById('pg-album-songs').style.display = 'none';
+
+    try {
+        const res = await req(`${API_CF_WORKER}/v1/data/album_meta.bin?id=${albumId}`);
+
+        let songs = [];
+        if (res && res.songs) {
+            songs = res.songs;
+        } else if (res && res.album && res.album.songs) {
+            songs = res.album.songs;
+        }
+
+        if (songs && songs.length > 0) {
+            const processedSongs = processRawSongs(songs.map(s => ({ ...s, source: 'netease' })));
+            state.currentAlbum.songs = processedSongs;
+            renderAlbumSongs();
+        } else {
+            container.innerHTML = '<div style="text-align:center;padding:40px;opacity:0.6">暂无歌曲</div>';
+        }
+    } catch (e) {
+        console.error('加载专辑详情失败:', e);
+        container.innerHTML = '<div style="text-align:center;padding:40px;opacity:0.6">加载失败</div>';
+    }
+}
+
+async function loadLrc(s, id = null, src = null) {
+    const targetId = id || s.id; const targetSrc = src || s.source; let lyricText = "";
+
+    // --- 针对 Sayqz 源 (QQ) 的特殊处理 ---
+    // 注意：网易云源 (netease) 已移除，优先走下方的自建 Worker 接口
+    if (targetSrc === 'qq') {
+        try {
+            const apiUrl = `${API_SAYQZ}/?source=${targetSrc}&id=${targetId}&type=lrc`;
+            const resp = await fetch(apiUrl);
+            const rawText = await resp.text();
+
+            try {
+                const json = JSON.parse(rawText);
+                if (json.data) lyricText = json.data;
+                else if (json.lrc) lyricText = json.lrc;
+            } catch (e) {
+                lyricText = rawText;
+            }
+        } catch (e) { console.warn("Sayqz 歌词获取异常:", e); }
+    }
+
+    if (!lyricText && (targetSrc === 'netease' || s.netease_id)) {
+        const realId = targetSrc === 'netease' ? targetId : s.netease_id;
+        console.groupCollapsed(`[Lyric] 开始获取歌词: ${realId}`);
+
+        // Priority 1: CF Worker /lyric (User Verified)
+        try {
+            console.log("[Lyric] 尝试 Priority 1 (CF Worker)...");
+            const res = await req(`${API_CF_WORKER}/v1/static/lrc.dat?id=${realId}`);
+            if (res) lyricText = (res.lrc && res.lrc.lyric) || res.lyric || "";
+            if (lyricText) console.log("[Lyric] Priority 1 成功");
+        } catch (e) { console.warn("[Lyric] Priority 1 失败/跳过:", e.message); }
+
+        // Priority 2: Cyrui (Direct GET) - Backup
+        if (!lyricText) {
+            try {
+                console.log("[Lyric] 尝试 Priority 2 (Cyrui)...");
+                const res = await req(`${API_CYRUI}/getLyric.php?id=${realId}`);
+                if (res) lyricText = (res.lrc && res.lrc.lyric) || res.lyric || "";
+                if (lyricText) console.log("[Lyric] Priority 2 成功");
+            } catch (e) { console.warn("[Lyric] Priority 2 失败:", e.message); }
+        }
+
+        // Priority 3: Xuanluoge (Direct GET)
+        if (!lyricText) {
+            try {
+                console.log("[Lyric] 尝试 Priority 3 (Xuanluoge)...");
+                const res = await req(`${API_XUAN}?miss=lyric&id=${realId}`);
+                if (res) lyricText = (res.lrc && res.lrc.lyric) || res.lyric || "";
+                if (lyricText) console.log("[Lyric] Priority 3 成功");
+            } catch (e) { console.warn("[Lyric] Priority 3 失败:", e.message); }
+        }
+
+        // Priority 4: GDMusic
+        if (!lyricText) {
+            try {
+                console.log("[Lyric] 尝试 Priority 4 (GDMusic)...");
+                const res = await req(`${API_GDMUSIC}?types=lyric&id=${realId}&source=netease`);
+                if (res && res.lyric) lyricText = res.lyric;
+                if (lyricText) console.log("[Lyric] Priority 4 成功");
+            } catch (e) { console.warn("[Lyric] Priority 4 失败:", e.message); }
+        }
+
+        console.groupEnd();
+    }
+
+    // 1. 解析歌词
+    let parsed = lyricText.split('\n').map(x => {
+        const m = /\[(\d+):(\d+)(\.\d+)?\](.*)/.exec(x);
+        return m ? { t: parseInt(m[1]) * 60 + parseFloat(m[2]), c: m[4].trim() } : null;
+    }).filter(x => x && x.c);
+
+    // 2. 排序
+    parsed.sort((a, b) => a.t - b.t);
+
+    // 3. 智能合并同时间轴歌词 (修复翻译遮挡原词问题)
+    const merged = [];
+    const hasChinese = (str) => /[\u4e00-\u9fa5]/.test(str);
+
+    for (let i = 0; i < parsed.length; i++) {
+        const curr = parsed[i];
+        const next = parsed[i + 1];
+
+        // 如果下一句时间相同 (误差0.2s内)，且两句都不为空
+        if (next && Math.abs(next.t - curr.t) < 0.2) {
+            let main = curr.c;
+            let sub = next.c;
+
+            // 逻辑: 如果当前句含中文而下一句不含(纯英文/其他)，则下一句应该是原词，当前句是翻译
+            // 交换位置，让原词在上面(Main)
+            if (hasChinese(curr.c) && !hasChinese(next.c)) {
+                main = next.c;
+                sub = curr.c;
+            }
+
+            // 合并显示
+            merged.push({
+                t: curr.t,
+                c: `${main}<br><span style="font-size:0.75em; opacity:0.6; font-weight:normal">${sub}</span>`
+            });
+            i++; // 跳过下一句
+        } else {
+            merged.push(curr);
+        }
+    }
+
+    state.lrc = merged;
+    // WRAP TEXT IN SPAN AND REMOVE INLINE ONCLICK (Delegate to mobile-logic.js)
+    document.getElementById('lrc-content').innerHTML = state.lrc.length ?
+        state.lrc.map((l, i) => `<p class="lrc" data-idx="${i}"><span>${l.c}</span></p>`).join('') :
+        '<p class="lrc">纯音乐 / 无歌词</p>';
+}
+
+async function fetchAndDownload(btn, level, tag) {
+    const originalText = btn.innerHTML;
+    btn.innerHTML = `<span style="color:var(--c-player-main)"><i class="fas fa-spinner fa-spin"></i> 解析中...</span>`;
+
+    const s = state.list[state.index];
+    let currentSrc = s.source || state.src;
+    if (currentSrc === 'netease_album') currentSrc = 'netease';
+
+    try {
+        let url = "";
+        let ext = (level === 'lossless' || level === 'hires' || level === 'jymaster') ? "flac" : "mp3";
+
+        // ★★★ 优先使用 QualityDetector 的缓存结果 (最高优先级) ★★★
+        if (typeof qualityDetector !== 'undefined' && qualityDetector) {
+            const cacheKey = qualityDetector.getCacheKey(s);
+            const cached = qualityDetector.cache.get(cacheKey);
+            if (cached && qualityDetector.isCacheValid(cached)) {
+                // 尝试找完全匹配的音质
+                let targetQual = cached.qualities.find(q => q.level === level);
+                if (targetQual && targetQual.url) {
+                    url = targetQual.url;
+                    console.log(`[Download] 命中检测缓存: ${level} -> ${url}`);
+                }
+            }
+        }
+
+        // 如果检测器里没拿到 URL，再走 API Fallback 链 (Dynamic Priority List)
+        if (!url && ['netease', 'netease_album'].includes(currentSrc)) {
+            if (typeof API_PRIORITY_LIST !== 'undefined') {
+                for (const provider of API_PRIORITY_LIST) {
+                    if (url) break; // Found valid URL
+                    console.log(`[Download] Trying ${provider.name}...`);
+
+                    try {
+                        if (provider.type === 'cyrui') {
+                            const res = await req(`${API_CYRUI}/getMusicUrl.php?id=${s.id}&level=${level}`);
+                            if (res && res.data && res.data[0] && res.data[0].url) {
+                                url = res.data[0].url.replace('http://', 'https://');
+                            }
+                        }
+                        else if (provider.type === 'rrvenn') {
+                            const res = await req(`${API_RRVENN}?action=music&url=${s.id}&id=${s.id}&level=${level}&type=json`);
+                            if (res && res.url) {
+                                url = res.url.replace('http://', 'https://');
+                            }
+                        }
+                        else if (provider.type === 'xuan') {
+                            const res = await req(`${API_XUAN}?miss=getMusicUrl&id=${s.id}&level=${level}`);
+                            if (res && res.data && res.data[0] && res.data[0].url) {
+                                url = res.data[0].url.replace('http://', 'https://');
+                            }
+                        }
+                        else if (provider.type === 'main' || provider.type === 'proxy') {
+                            // Use provider.api
+                            const res = await req(`${provider.api}?id=${s.id}&level=${level}`);
+                            if (typeof res === 'string' && res.startsWith('http')) url = res;
+                            else if (res && (res.url || (res.data && res.data.url))) url = res.url || res.data.url;
+                            if (url) url = url.replace('http://', 'https://');
+                        }
+                        else if (provider.type === 'gd') {
+                            const gdSrc = (currentSrc === 'qq') ? 'qq' : 'netease';
+                            const res = await req(`${API_GDMUSIC}?types=url&id=${s.id}&source=${gdSrc}&level=${level}`);
+                            if (res && res.url) url = res.url.replace('http://', 'https://');
+                        }
+                        else if (provider.type === 'direct') {
+                            const res = await req(`${API_CF_WORKER}/v1/assets/manifest.bin?id=${s.id}&br=${level}`);
+                            if (res && res.data && res.data[0] && res.data[0].url) {
+                                url = res.data[0].url.replace('http://', 'https://');
+                            }
+                        }
+
+                        if (url) console.log(`[Download] Success with ${provider.name}`);
+                    } catch (e) {
+                        console.warn(`[Download] ${provider.name} failed:`, e);
+                    }
+                }
+            } else {
+                console.warn("API_PRIORITY_LIST missing in download context");
+            }
+        }
+
+        if (url) {
+            // 简单的后缀修正
+            if (url.includes('.flac')) ext = 'flac';
+            else if (url.includes('.m4a')) ext = 'm4a';
+            else if (url.includes('.wav')) ext = 'wav';
+            else if (level.includes('master') || level.includes('hires')) ext = 'flac';
+        }
+
+        if (!url) throw new Error("无有效链接");
+
+        // 生成友好的文件名：歌手 - 歌曲名.扩展名
+        const sanitize = (str) => str.replace(/[\\/:*?"<>|]/g, '_'); // 移除Windows非法字符
+        const filename = `${sanitize(s.artist)} - ${sanitize(s.name)}.${ext}`;
+
+        // 显示sidebar底部的下载进度
+        const progressContainer = document.getElementById('download-progress-sidebar');
+        const filenameEl = document.getElementById('download-filename-sidebar');
+        const statusEl = document.getElementById('download-status-sidebar');
+        const progressBar = document.getElementById('download-progress-bar-sidebar');
+
+        filenameEl.textContent = filename;
+        statusEl.textContent = '准备下载...';
+        progressBar.style.width = '0%';
+        progressContainer.style.display = 'block';
+
+        // 关闭下载选择弹窗
+        document.getElementById('pop-download').classList.remove('show');
+
+        // ★ Logic: Determine Download Method
+        // 1. Default: Direct Download
+        let downloadUrl = url;
+
+        // 2. QQ Music: Force HTTPS to avoid Mixed Content (Direct Link)
+        if (downloadUrl.includes('.qq.com') && downloadUrl.startsWith('http:')) {
+            downloadUrl = downloadUrl.replace('http:', 'https:');
+        }
+
+        // 3. 网易云：代理 music.163.com 避免 Blob Fetch 跨域失败
+        if (downloadUrl.includes('music.163.com') && typeof API_CF_WORKER !== 'undefined') {
+            downloadUrl = `${API_CF_WORKER}/v1/audio/stream.dat?url=${encodeURIComponent(downloadUrl)}&filename=${encodeURIComponent(filename)}`;
+        }
+
+        // ★ CRITICAL FIX: Ensure downloadUrl is valid before creating the link.
+        // Clicking an empty <a> tag causes the page to refresh/reload.
+        if (!downloadUrl || downloadUrl.trim() === "") {
+            throw new Error("无法获取有效的下载链接");
+        }
+
+        // ★ Usage: Force Download (Try Blob first, Fallback to New Tab)
+        // 浏览器直接打开 MP3/FLAC URL 默认是播放。要强制下载，必须用 Blob 伪造请求，或者服务器返回 attachment 头。
+        // 既然不能用代理（服务器头不可控），我们尝试前端 Blob 下载。
+
+        statusEl.textContent = '正在连接...';
+
+        try {
+            // 尝试 1:通过 Fetch 获取 Blob (触发真正的下载)
+            // 这要求目标服务器允许 CORS (部分网易云/QQ CDN 是允许的)
+            const response = await fetch(downloadUrl);
+            if (!response.ok) throw new Error("Network response was not ok");
+
+            // --- 进度条实现 (Stream Reading) ---
+            const contentLength = response.headers.get('content-length');
+            const total = parseInt(contentLength, 10);
+            let loaded = 0;
+
+            const reader = response.body.getReader();
+            const chunks = [];
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                chunks.push(value);
+                loaded += value.length;
+
+                // 更新进度条
+                if (total) {
+                    const percent = Math.round((loaded / total) * 100);
+                    if (progressBar) progressBar.style.width = percent + '%';
+                    if (statusEl) statusEl.textContent = `下载中 ${percent}%`;
+                } else {
+                    // 如果没有 Content-Length，显示已下载大小
+                    if (statusEl) statusEl.textContent = `下载中 ${(loaded / 1024 / 1024).toFixed(2)} MB`;
+                }
+            }
+
+            const blob = new Blob(chunks);
+            const blobUrl = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = filename; // 这里的 filename 是 "歌手 - 歌名.ext"
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            // 释放内存
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+            statusEl.textContent = '下载完成 ✓';
+            if (progressBar) progressBar.style.width = '100%';
+
+        } catch (corsError) {
+            console.warn("[Download] Blob Download Failed (CORS?), falling back to Direct Link:", corsError);
+
+            // 尝试 2: 降级为新标签页打开 (浏览器默认播放，用户需右键另存为)
+            // 这是唯一的纯前端直连兜底方案
+            statusEl.textContent = '跨域限制，已打开链接';
+
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.target = '_blank';
+            a.rel = 'noreferrer';
+            // 尝试加 download 属性 (虽然跨域时浏览器常忽略)
+            a.setAttribute('download', filename);
+
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        setTimeout(() => { progressContainer.style.display = 'none'; }, 2500);
+        btn.innerHTML = originalText;
+        return;
+
+    } catch (e) {
+        console.error(e);
+        const progressContainer = document.getElementById('download-progress-sidebar');
+        const statusEl = document.getElementById('download-status-sidebar');
+        if (statusEl) statusEl.textContent = '下载失败 ✗';
+        setTimeout(() => {
+            if (progressContainer) progressContainer.style.display = 'none';
+        }, 2000);
+        btn.innerHTML = `<span style="color:#ff5555">下载失败</span>`;
+        setTimeout(() => { btn.innerHTML = originalText; }, 1500);
+    }
+}
