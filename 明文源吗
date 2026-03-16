@@ -1034,12 +1034,12 @@ window.loadAlbumDetail = loadAlbumDetail;
 window.fetchAndDownload = fetchAndDownload;
 window.loadLrc = loadLrc;
 window.loadPageDetails = loadPageDetails;
-// 音质检测器模块
+﻿// 闊宠川妫€娴嬪櫒妯″潡
 
 class QualityDetector {
     constructor() {
         this.cache = new Map();
-        this.cacheExpiry = 30 * 60 * 1000; // 30分钟
+        this.cacheExpiry = 30 * 60 * 1000; // 30鍒嗛挓
     }
 
     getCacheKey(song) {
@@ -1056,16 +1056,16 @@ class QualityDetector {
         const cached = this.cache.get(cacheKey);
 
         if (!overrideApi && this.isCacheValid(cached)) {
-            console.log(`[QualityDetector] 使用缓存:`, song.name);
+            console.info(`[QualityDetector] 浣跨敤缂撳瓨:`, song.name);
             return cached.qualities;
         }
 
-        console.log(`[QualityDetector] 分析中...`, overrideApi ? `(M: ${overrideApi})` : '');
+        console.info(`[QualityDetector] 鍒嗘瀽涓?..`, overrideApi ? `(M: ${overrideApi})` : '');
         const source = song.source || 'netease';
         let qualities = [];
 
         try {
-            // ★★★ Check Override API First (For Recovery) ★★★
+            // 鈽呪槄鈽?Check Override API First (For Recovery) 鈽呪槄鈽?
             if (overrideApi) {
                 if (source === 'netease' || source === 'netease_album') {
                     // Special handling for GDMUSIC/SAYQZ if passed as override, but usually it's a URL
@@ -1089,10 +1089,10 @@ class QualityDetector {
                 return qualities;
             }
 
-            // ★★★ Check User Preferred API First ★★★
+            // 鈽呪槄鈽?Check User Preferred API First 鈽呪槄鈽?
             if (window.state && window.state.preferredApi) {
                 const pApi = window.state.preferredApi;
-                console.log(`[QualityDetector] Prioritizing User API: ${pApi}`);
+                console.info(`[QualityDetector] Prioritizing User API: ${pApi}`);
 
                 if (source === 'netease' || source === 'netease_album') {
                     if (pApi === 'proxy') qualities = await this.checkWyapiQualities(song.id, API_PROXY);
@@ -1107,7 +1107,7 @@ class QualityDetector {
                 }
 
                 if (qualities && qualities.length > 0) {
-                    console.log(`[QualityDetector] User API (${pApi}) found ${qualities.length} qualities.`);
+                    console.info(`[QualityDetector] User API (${pApi}) found ${qualities.length} qualities.`);
                     this.cache.set(cacheKey, { qualities, timestamp: Date.now() });
                     return qualities;
                 }
@@ -1122,7 +1122,7 @@ class QualityDetector {
                 }
 
                 for (const provider of API_PRIORITY_LIST) {
-                    // 静默运行，不再打印 Provider 信息
+                    // 闈欓粯杩愯锛屼笉鍐嶆墦鍗?Provider 淇℃伅
 
                     try {
                         if (provider.type === 'cyrui') {
@@ -1140,7 +1140,7 @@ class QualityDetector {
                         }
 
                         if (qualities && qualities.length > 0) {
-                            // console.log(`[QualityDetector] Success`);
+                            // console.info(`[QualityDetector] Success`);
                             this.cache.set(cacheKey, { qualities, timestamp: Date.now() });
                             return qualities;
                         }
@@ -1158,22 +1158,22 @@ class QualityDetector {
             this.cache.set(cacheKey, { qualities, timestamp: Date.now() });
             return qualities;
         } catch (error) {
-            console.error(`[QualityDetector] 失败:`, error);
+            console.error(`[QualityDetector] 澶辫触:`, error);
             return this.getDefaultQualities(source);
         }
     }
 
     async checkWyapiQualities(songId, apiUrl) {
         const levels = [
-            { level: 'standard', tag: 'MP3', name: '标准音质' },
-            { level: 'higher', tag: 'MP3', name: '较高音质' },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质' },
-            { level: 'lossless', tag: 'FLAC', name: '无损音质' },
-            { level: 'hires', tag: 'Hi-Res', name: '高清无损' },
-            { level: 'jyeffect', tag: 'Surround', name: '高清臻音' },
-            { level: 'sky', tag: 'Spatial Audio', name: '沉浸环绕声' },
-            { level: 'dolby', tag: 'Dolby Atmos', name: '杜比全景声' },
-            { level: 'jymaster', tag: 'Master', name: '超清母带' }
+            { level: 'standard', tag: 'MP3', name: '鏍囧噯闊宠川' },
+            { level: 'higher', tag: 'MP3', name: '杈冮珮闊宠川' },
+            { level: 'exhigh', tag: 'MP3', name: '鏋侀珮闊宠川' },
+            { level: 'lossless', tag: 'FLAC', name: '鏃犳崯闊宠川' },
+            { level: 'hires', tag: 'Hi-Res', name: '楂樻竻鏃犳崯' },
+            { level: 'jyeffect', tag: 'Surround', name: '楂樻竻鑷婚煶' },
+            { level: 'sky', tag: 'Spatial Audio', name: '娌夋蹈鐜粫澹? },
+            { level: 'dolby', tag: 'Dolby Atmos', name: '鏉滄瘮鍏ㄦ櫙澹? },
+            { level: 'jymaster', tag: 'Master', name: '瓒呮竻姣嶅甫' }
         ];
 
         const checkPromises = levels.map(async (q) => {
@@ -1291,7 +1291,7 @@ class QualityDetector {
 
         // URL Deduplication & Size Validation
         const urlMap = new Map();
-        console.group(`[QualityDetector] ${songId} 检测结果(原始: ${validResults.length} 个)`);
+        console.group(`[QualityDetector] ${songId} 妫€娴嬬粨鏋?鍘熷: ${validResults.length} 涓?`);
 
         // 1. Group by URL Key (Gather all levels pointing to same URL)
         for (const q of validResults) {
@@ -1334,7 +1334,7 @@ class QualityDetector {
             // Default: Pick lowest quality as safe fallback
             let bestLevel = entry.levels[0];
 
-            // ★ Priority Rule: If URL explicitly contains the level name, TRUST IT ★
+            // 鈽?Priority Rule: If URL explicitly contains the level name, TRUST IT 鈽?
             // This ensures if URL says '&br=jymaster', we pick 'jymaster' even if it was also grouped with 'lossless'
             for (const lvl of entry.levels) {
                 if (entry.url.includes(`br=${lvl}`) || entry.url.includes(`level=${lvl}`)) {
@@ -1351,14 +1351,14 @@ class QualityDetector {
             if (entry.size > 0 && entry.size < 15 * 1024 * 1024) {
                 const losslessQualities = ['jymaster', 'dolby', 'sky', 'jyeffect', 'hires', 'lossless'];
                 if (losslessQualities.includes(bestLevel)) {
-                    console.log(`⚠️ Size Mismatch (Lossless): [${bestLevel}] is only ${entry.sizeStr}. Downgrading to ExHigh.`);
+                    console.info(`鈿狅笍 Size Mismatch (Lossless): [${bestLevel}] is only ${entry.sizeStr}. Downgrading to ExHigh.`);
                     bestLevel = 'exhigh'; // Downgrade to 320k first
                 }
             }
             // Tier 2: ExHigh (320k) should be > 3MB (Short songs can be ~4MB)
             if (entry.size > 0 && entry.size < 3 * 1024 * 1024) {
                 if (bestLevel === 'exhigh') {
-                    console.log(`⚠️ Size Mismatch (ExHigh): [${bestLevel}] is only ${entry.sizeStr}. Downgrading to Standard.`);
+                    console.info(`鈿狅笍 Size Mismatch (ExHigh): [${bestLevel}] is only ${entry.sizeStr}. Downgrading to Standard.`);
                     bestLevel = 'standard';
                 }
             }
@@ -1367,10 +1367,10 @@ class QualityDetector {
             let q = entry.tags.find(t => t.level === bestLevel);
             if (!q) {
                 // If we forced a level (e.g. 'standard') that wasn't in list, create a synthetic one
-                q = { ...entry.tags[0], level: bestLevel, name: '标准音质', tag: 'MP3' };
+                q = { ...entry.tags[0], level: bestLevel, name: '鏍囧噯闊宠川', tag: 'MP3' };
                 // Fix map names if needed
-                if (bestLevel === 'higher') { q.name = '较高音质'; q.tag = 'MP3'; }
-                if (bestLevel === 'exhigh') { q.name = '极高音质'; q.tag = 'MP3'; }
+                if (bestLevel === 'higher') { q.name = '杈冮珮闊宠川'; q.tag = 'MP3'; }
+                if (bestLevel === 'exhigh') { q.name = '鏋侀珮闊宠川'; q.tag = 'MP3'; }
             }
 
             // Update size info in the final object
@@ -1378,7 +1378,7 @@ class QualityDetector {
             q.sizeStr = entry.sizeStr;
 
             unique.push(q);
-            console.info(`✅ Unique: [${q.level}] ${q.name} - ${q.sizeStr} `);
+            console.info(`鉁?Unique: [${q.level}] ${q.name} - ${q.sizeStr} `);
         }
 
         // 3. Final Sort by Size (Descending)
@@ -1416,13 +1416,13 @@ class QualityDetector {
                 finalUnique.push(item);
                 seenNames.add(item.name);
             } else {
-                console.log(`⚠️ Removing Duplicate Label: ${item.name} (${item.sizeStr})`);
+                console.info(`鈿狅笍 Removing Duplicate Label: ${item.name} (${item.sizeStr})`);
             }
         }
 
         console.groupEnd();
 
-        // ★ FIXED: Removed fallback to checkSayqzQualities
+        // 鈽?FIXED: Removed fallback to checkSayqzQualities
         // The calling function (detectQualities) handles the fallback chain. 
         // Returning [] here allows it to proceed to Priority 2 (Proxy) etc.
         return finalUnique.length > 0 ? finalUnique : [];
@@ -1430,9 +1430,9 @@ class QualityDetector {
 
     async checkSayqzQualities(source, songId) {
         const levels = [
-            { level: 'standard', tag: 'MP3', name: '标准音质', br: '128k' },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质', br: '320k' },
-            { level: 'lossless', tag: 'FLAC', name: '无损音质', br: 'flac' },
+            { level: 'standard', tag: 'MP3', name: '鏍囧噯闊宠川', br: '128k' },
+            { level: 'exhigh', tag: 'MP3', name: '鏋侀珮闊宠川', br: '320k' },
+            { level: 'lossless', tag: 'FLAC', name: '鏃犳崯闊宠川', br: 'flac' },
             { level: 'hires', tag: 'Hi-Res', name: 'Hi-Res', br: 'flac24bit' }
         ];
 
@@ -1445,7 +1445,7 @@ class QualityDetector {
                 if (response.ok && response.url && !response.url.includes('error')) {
                     const len = response.headers.get('content-length');
                     let size = len ? parseInt(len, 10) : 0;
-                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '未知大小';
+                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '鏈煡澶у皬';
 
                     // Check if final URL is HTTP but we are on HTTPS
                     let finalUrl = response.url;
@@ -1471,7 +1471,7 @@ class QualityDetector {
                             url: testUrl,
                             urlKey: testUrl, // Use request URL as key since we rely on it
                             size: 0,
-                            sizeStr: '未知'
+                            sizeStr: '鏈煡'
                         };
                     }
                 } catch (e2) { }
@@ -1482,12 +1482,12 @@ class QualityDetector {
         const results = await Promise.all(checkPromises);
         const validResults = results.filter(r => r !== null);
 
-        // URL去重与"假无损"过滤逻辑 - v2
+        // URL鍘婚噸涓?鍋囨棤鎹?杩囨护閫昏緫 - v2
         const urlMap = new Map();
         const unique = [];
-        console.groupCollapsed(`[QualityDetector] Sayqz ${source} - ${songId} 检测结果`);
+        console.group(`[QualityDetector] Sayqz ${source} - ${songId} 妫€娴嬬粨鏋渀);
 
-        // 按质量等级排序：低 -> 高
+        // 鎸夎川閲忕瓑绾ф帓搴忥細浣?-> 楂?
         const levelOrder = ['standard', 'exhigh', 'lossless', 'hires', 'sky', 'jyeffect', 'dolby', 'jymaster'];
         validResults.sort((a, b) => levelOrder.indexOf(a.level) - levelOrder.indexOf(b.level));
 
@@ -1496,20 +1496,20 @@ class QualityDetector {
         for (const q of validResults) {
             if (urlMap.has(q.urlKey)) {
                 const existing = urlMap.get(q.urlKey);
-                console.log(`❌ URL重复 (已过滤): [${q.level}] 与 [${existing.level}] URL相同`);
+                console.info(`鉂?URL閲嶅 (宸茶繃婊?: [${q.level}] 涓?[${existing.level}] URL鐩稿悓`);
                 continue;
             }
 
             if (q.size && q.size > 0 && sizeMap.has(q.size)) {
                 const existing = sizeMap.get(q.size);
-                console.log(`❌ 虚假音质 (已过滤): [${q.level}] 大小(${q.sizeStr}) 与 [${existing.level}] 相同 -> 视为假源`);
+                console.info(`鉂?铏氬亣闊宠川 (宸茶繃婊?: [${q.level}] 澶у皬(${q.sizeStr}) 涓?[${existing.level}] 鐩稿悓 -> 瑙嗕负鍋囨簮`);
                 continue;
             }
 
             urlMap.set(q.urlKey, q);
             if (q.size > 0) sizeMap.set(q.size, q);
             unique.push(q);
-            console.log(`✅ 有效: [${q.level}] ${q.name} - ${q.sizeStr} (Size: ${q.size})`);
+            console.info(`鉁?鏈夋晥: [${q.level}] ${q.name} - ${q.sizeStr} (Size: ${q.size})`);
         }
 
         unique.sort((a, b) => {
@@ -1532,10 +1532,10 @@ class QualityDetector {
 
     async checkGDStudioQualities(source, songId) {
         const levels = [
-            { level: 'standard', tag: 'MP3', name: '标准音质', br: '128' },
-            { level: 'higher', tag: 'MP3', name: '较高音质', br: '192' },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质', br: '320' },
-            { level: 'lossless', tag: 'FLAC', name: '无损音质', br: '740' },
+            { level: 'standard', tag: 'MP3', name: '鏍囧噯闊宠川', br: '128' },
+            { level: 'higher', tag: 'MP3', name: '杈冮珮闊宠川', br: '192' },
+            { level: 'exhigh', tag: 'MP3', name: '鏋侀珮闊宠川', br: '320' },
+            { level: 'lossless', tag: 'FLAC', name: '鏃犳崯闊宠川', br: '740' },
             { level: 'hires', tag: 'Hi-Res', name: 'Hi-Res', br: '999' }
         ];
 
@@ -1551,7 +1551,7 @@ class QualityDetector {
                         if (len) size = parseInt(len, 10);
                     } catch (e) { }
 
-                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '未知大小';
+                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '鏈煡澶у皬';
                     return { ...q, available: true, url: res.url, urlKey: res.url.split('?')[0], size: size, sizeStr: sizeMB };
                 }
                 return null;
@@ -1561,10 +1561,10 @@ class QualityDetector {
         const results = await Promise.all(checkPromises);
         const validResults = results.filter(r => r !== null);
 
-        // URL去重与"假无损"过滤逻辑 - v2 (JOOX)
+        // URL鍘婚噸涓?鍋囨棤鎹?杩囨护閫昏緫 - v2 (JOOX)
         const urlMap = new Map();
         const unique = [];
-        console.groupCollapsed(`[QualityDetector] GDStudio ${source} - ${songId} 检测结果`);
+        console.group(`[QualityDetector] GDStudio ${source} - ${songId} 妫€娴嬬粨鏋渀);
 
         const levelOrder = ['standard', 'exhigh', 'lossless'];
         validResults.sort((a, b) => levelOrder.indexOf(a.level) - levelOrder.indexOf(b.level));
@@ -1576,14 +1576,14 @@ class QualityDetector {
 
             if (q.size && q.size > 0 && sizeMap.has(q.size)) {
                 const existing = sizeMap.get(q.size);
-                console.log(`❌ 虚假音质 (已过滤): [${q.level}] 大小(${q.sizeStr}) 相同`);
+                console.info(`鉂?铏氬亣闊宠川 (宸茶繃婊?: [${q.level}] 澶у皬(${q.sizeStr}) 鐩稿悓`);
                 continue;
             }
 
             urlMap.set(q.urlKey, q);
             if (q.size > 0) sizeMap.set(q.size, q);
             unique.push(q);
-            console.log(`✅ 有效: [${q.level}] ${q.name} - ${q.sizeStr}`);
+            console.info(`鉁?鏈夋晥: [${q.level}] ${q.name} - ${q.sizeStr}`);
         }
 
         unique.sort((a, b) => {
@@ -1605,11 +1605,11 @@ class QualityDetector {
     async checkXuanQualities(songId) {
         // Xuanluoge: GET /api.php?miss=getMusicUrl&id=...&level=...
         const levels = [
-            { level: 'jymaster', tag: 'Master', name: '超清母带' },
-            { level: 'sky', tag: 'Spatial', name: '沉浸环绕声' },
-            { level: 'lossless', tag: 'FLAC', name: '无损音质' },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质' },
-            { level: 'standard', tag: 'MP3', name: '标准音质' }
+            { level: 'jymaster', tag: 'Master', name: '瓒呮竻姣嶅甫' },
+            { level: 'sky', tag: 'Spatial', name: '娌夋蹈鐜粫澹? },
+            { level: 'lossless', tag: 'FLAC', name: '鏃犳崯闊宠川' },
+            { level: 'exhigh', tag: 'MP3', name: '鏋侀珮闊宠川' },
+            { level: 'standard', tag: 'MP3', name: '鏍囧噯闊宠川' }
         ];
 
         // Similar deduplication logic as GD/Sayqz...
@@ -1631,9 +1631,9 @@ class QualityDetector {
                         else if (lowerStr.includes('mb')) size = numVal * 1024 * 1024;
                         else if (lowerStr.includes('kb')) size = numVal * 1024;
                         else {
-                            // 如果没有任何单位，且数字本身就很大，说明就是 bytes
+                            // 濡傛灉娌℃湁浠讳綍鍗曚綅锛屼笖鏁板瓧鏈韩灏卞緢澶э紝璇存槑灏辨槸 bytes
                             if (numVal > 1024 * 10) size = parseInt(numVal, 10);
-                            else size = parseInt(numVal, 10) * 1024 * 1024; // 假设无单位的小于 1000 的数字是省略了 MB
+                            else size = parseInt(numVal, 10) * 1024 * 1024; // 鍋囪鏃犲崟浣嶇殑灏忎簬 1000 鐨勬暟瀛楁槸鐪佺暐浜?MB
                         }
                     }
 
@@ -1644,7 +1644,7 @@ class QualityDetector {
                         } catch (e) { }
                     }
 
-                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '未知大小';
+                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '鏈煡澶у皬';
                     return { ...q, available: true, url: url, urlKey: url.split('?')[0], size: size, sizeStr: sizeMB, raw: res };
                 }
                 return null;
@@ -1658,11 +1658,11 @@ class QualityDetector {
         const sizeMap = new Map();
         const unique = [];
 
-        console.groupCollapsed(`[QualityDetector] Xuan ${songId} 检测结果`);
+        console.group(`[QualityDetector] Xuan ${songId} 妫€娴嬬粨鏋渀);
         for (const r of validResults) {
             if (urlMap.has(r.urlKey)) continue;
             if (r.size && r.size > 0 && sizeMap.has(r.size)) {
-                console.log(`❌ [QualityDetector] 虚假音质 (已过滤 xuan): [${r.level}] 大小(${r.sizeStr}) 相同`);
+                console.info(`鉂?[QualityDetector] 铏氬亣闊宠川 (宸茶繃婊?xuan): [${r.level}] 澶у皬(${r.sizeStr}) 鐩稿悓`);
                 continue;
             }
             urlMap.set(r.urlKey, r);
@@ -1670,34 +1670,34 @@ class QualityDetector {
             unique.push(r);
         }
 
-        // 定义音质权重：jymaster > dolby > sky > jyeffect > hires > lossless > exhigh > higher > standard
+        // 瀹氫箟闊宠川鏉冮噸锛歫ymaster > dolby > sky > jyeffect > hires > lossless > exhigh > higher > standard
         const qWeight = { jymaster: 10, dolby: 9, sky: 8, jyeffect: 7, hires: 6, lossless: 5, exhigh: 4, higher: 3, standard: 2 };
         
-        // 按权重从高到低排序打印日志
+        // 鎸夋潈閲嶄粠楂樺埌浣庢帓搴忔墦鍗版棩蹇?
         unique.sort((a, b) => (qWeight[b.level] || 0) - (qWeight[a.level] || 0));
         unique.forEach(r => {
-            // 1. 先打印对应的原始响应数据 (带上识别标签)
-            console.info(`📡 [API Response] /v1/core/fetch.bin [${r.name}${r.level ? ' - ' + r.level : ''}]:`, r.raw);
-            // 2. 再紧跟打印 Analysis 结论
-            console.info(`✅ [Analysis] Channel-A: [${r.level}] - ${r.sizeStr}`);
+            // 1. 鍏堟墦鍗板搴旂殑鍘熷鍝嶅簲鏁版嵁 (甯︿笂璇嗗埆鏍囩)
+            console.info(`馃摗 [API Response] /v1/core/fetch.bin [${r.name}${r.level ? ' - ' + r.level : ''}]:`, r.raw);
+            // 2. 鍐嶇揣璺熸墦鍗?Analysis 缁撹
+            console.info(`鉁?[Analysis] Channel-A: [${r.level}] - ${r.sizeStr}`);
         });
         console.groupEnd();
 
-        // 最终返回也按同一逻辑排序
+        // 鏈€缁堣繑鍥炰篃鎸夊悓涓€閫昏緫鎺掑簭
         return unique.length > 0 ? unique : [];
     }
 
     async checkRrvennQualities(songId) {
         const levels = [
-            { level: 'jymaster', tag: 'Master', name: '超清母带' },
-            { level: 'dolby', tag: 'Dolby Atmos', name: '杜比全景声' },
-            { level: 'sky', tag: 'Spatial Audio', name: '沉浸环绕声' },
-            { level: 'jyeffect', tag: 'Surround', name: '高清臻音' },
-            { level: 'hires', tag: 'Hi-Res', name: '高清无损' },
-            { level: 'lossless', tag: 'FLAC', name: '无损音质' },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质' },
-            { level: 'higher', tag: 'MP3', name: '较高音质' },
-            { level: 'standard', tag: 'MP3', name: '标准音质' }
+            { level: 'jymaster', tag: 'Master', name: '瓒呮竻姣嶅甫' },
+            { level: 'dolby', tag: 'Dolby Atmos', name: '鏉滄瘮鍏ㄦ櫙澹? },
+            { level: 'sky', tag: 'Spatial Audio', name: '娌夋蹈鐜粫澹? },
+            { level: 'jyeffect', tag: 'Surround', name: '楂樻竻鑷婚煶' },
+            { level: 'hires', tag: 'Hi-Res', name: '楂樻竻鏃犳崯' },
+            { level: 'lossless', tag: 'FLAC', name: '鏃犳崯闊宠川' },
+            { level: 'exhigh', tag: 'MP3', name: '鏋侀珮闊宠川' },
+            { level: 'higher', tag: 'MP3', name: '杈冮珮闊宠川' },
+            { level: 'standard', tag: 'MP3', name: '鏍囧噯闊宠川' }
         ];
 
         const checkPromises = levels.map(async (q) => {
@@ -1723,7 +1723,7 @@ class QualityDetector {
                         }
                     }
 
-                    // 如果体积还没计算出来，使用 probeUrl 主动探查一次补充
+                    // 濡傛灉浣撶Н杩樻病璁＄畻鍑烘潵锛屼娇鐢?probeUrl 涓诲姩鎺㈡煡涓€娆¤ˉ鍏?
                     if (!size || size === 0) {
                         try {
                             const probeSize = await this.probeUrl(url);
@@ -1731,7 +1731,7 @@ class QualityDetector {
                         } catch (e) { }
                     }
 
-                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : (res.size || '未知大小');
+                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : (res.size || '鏈煡澶у皬');
                     return { ...q, available: true, url: url, urlKey: url.split('?')[0], size: size, sizeStr: sizeMB, raw: res };
                 }
                 return null;
@@ -1741,19 +1741,19 @@ class QualityDetector {
         const results = await Promise.all(checkPromises);
         let validResults = results.filter(r => r !== null);
 
-        // 重构去重逻辑，参考 checkWyapiQualities 的先进排重机制
+        // 閲嶆瀯鍘婚噸閫昏緫锛屽弬鑰?checkWyapiQualities 鐨勫厛杩涙帓閲嶆満鍒?
         const urlMap = new Map();
         const sizeMap = new Map();
         const unique = [];
 
-        console.groupCollapsed(`[QualityDetector] Rrvenn ${songId} 检测结果`);
+        console.group(`[QualityDetector] Rrvenn ${songId} 妫€娴嬬粨鏋渀);
         for (const r of validResults) {
-            // URL 级重复拦截
+            // URL 绾ч噸澶嶆嫤鎴?
             if (urlMap.has(r.urlKey)) continue;
 
-            // 假无损拦截 (如果某高级音质的大小甚至不如普通音质或完全一样)
+            // 鍋囨棤鎹熸嫤鎴?(濡傛灉鏌愰珮绾ч煶璐ㄧ殑澶у皬鐢氳嚦涓嶅鏅€氶煶璐ㄦ垨瀹屽叏涓€鏍?
             if (r.size && r.size > 0 && sizeMap.has(r.size)) {
-                console.log(`❌ [QualityDetector] 虚假音质 (已过滤 rrvenn): [${r.level}] 大小(${r.sizeStr}) 相同`);
+                console.info(`鉂?[QualityDetector] 铏氬亣闊宠川 (宸茶繃婊?rrvenn): [${r.level}] 澶у皬(${r.sizeStr}) 鐩稿悓`);
                 continue;
             }
 
@@ -1762,27 +1762,27 @@ class QualityDetector {
             unique.push(r);
         }
 
-        // 按音质等级权重从高到低排序打印日志
+        // 鎸夐煶璐ㄧ瓑绾ф潈閲嶄粠楂樺埌浣庢帓搴忔墦鍗版棩蹇?
         const qWeight = { jymaster: 10, dolby: 9, sky: 8, jyeffect: 7, hires: 6, lossless: 5, exhigh: 4, higher: 3, standard: 2 };
         unique.sort((a, b) => (qWeight[b.level] || 0) - (qWeight[a.level] || 0));
         unique.forEach(r => {
-            console.info(`📡 [API Response] /v1/core/fetch.bin [${r.name}${r.level ? ' - ' + r.level : ''}]:`, r.raw);
-            console.info(`✅ [Analysis] Channel-B: [${r.level}] - ${r.sizeStr}`);
+            console.info(`馃摗 [API Response] /v1/core/fetch.bin [${r.name}${r.level ? ' - ' + r.level : ''}]:`, r.raw);
+            console.info(`鉁?[Analysis] Channel-B: [${r.level}] - ${r.sizeStr}`);
         });
         console.groupEnd();
 
-        // 最终按此排序结果返回
+        // 鏈€缁堟寜姝ゆ帓搴忕粨鏋滆繑鍥?
         return unique.length > 0 ? unique : [];
     }
 
     async checkCyruiQualities(songId) {
         // Cyrui: GET /getMusicUrl.php?id=...&level=...
         const levels = [
-            { level: 'jymaster', tag: 'Master', name: '超清母带' },
-            { level: 'sky', tag: 'Spatial', name: '沉浸环绕声' },
-            { level: 'lossless', tag: 'FLAC', name: '无损音质' },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质' },
-            { level: 'standard', tag: 'MP3', name: '标准音质' }
+            { level: 'jymaster', tag: 'Master', name: '瓒呮竻姣嶅甫' },
+            { level: 'sky', tag: 'Spatial', name: '娌夋蹈鐜粫澹? },
+            { level: 'lossless', tag: 'FLAC', name: '鏃犳崯闊宠川' },
+            { level: 'exhigh', tag: 'MP3', name: '鏋侀珮闊宠川' },
+            { level: 'standard', tag: 'MP3', name: '鏍囧噯闊宠川' }
         ];
 
         const checkPromises = levels.map(async (q) => {
@@ -1815,7 +1815,7 @@ class QualityDetector {
                         } catch (e) { }
                     }
 
-                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '未知大小';
+                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '鏈煡澶у皬';
                     return { ...q, available: true, url: url, urlKey: url.split('?')[0], size: size, sizeStr: sizeMB, raw: res };
                 }
                 return null;
@@ -1829,11 +1829,11 @@ class QualityDetector {
         const sizeMap = new Map();
         const unique = [];
 
-        console.groupCollapsed(`[QualityDetector] Cyrui ${songId} 检测结果`);
+        console.group(`[QualityDetector] Cyrui ${songId} 妫€娴嬬粨鏋渀);
         for (const r of validResults) {
             if (urlMap.has(r.urlKey)) continue;
             if (r.size && r.size > 0 && sizeMap.has(r.size)) {
-                console.log(`❌ [QualityDetector] 虚假音质 (已过滤 cyrui): [${r.level}] 大小(${r.sizeStr}) 相同`);
+                console.info(`鉂?[QualityDetector] 铏氬亣闊宠川 (宸茶繃婊?cyrui): [${r.level}] 澶у皬(${r.sizeStr}) 鐩稿悓`);
                 continue;
             }
             urlMap.set(r.urlKey, r);
@@ -1841,12 +1841,12 @@ class QualityDetector {
             unique.push(r);
         }
 
-        // 按音质等级权重排序输出日志
+        // 鎸夐煶璐ㄧ瓑绾ф潈閲嶆帓搴忚緭鍑烘棩蹇?
         const qWeight = { jymaster: 10, dolby: 9, sky: 8, jyeffect: 7, hires: 6, lossless: 5, exhigh: 4, higher: 3, standard: 2 };
         unique.sort((a, b) => (qWeight[b.level] || 0) - (qWeight[a.level] || 0));
         unique.forEach(r => {
-            console.info(`📡 [API Response] /v1/core/cy.bin [${r.name}${r.level ? ' - ' + r.level : ''}]:`, r.raw);
-            console.info(`✅ [Analysis] Channel-CY: [${r.level}] - ${r.sizeStr}`);
+            console.info(`馃摗 [API Response] /v1/core/cy.bin [${r.name}${r.level ? ' - ' + r.level : ''}]:`, r.raw);
+            console.info(`鉁?[Analysis] Channel-CY: [${r.level}] - ${r.sizeStr}`);
         });
         console.groupEnd();
 
@@ -1857,11 +1857,11 @@ class QualityDetector {
         // CF Direct: https://wy.omg666.eu.org/song/url?id=xxx&br=xxx
         // Response: { code: 200, data: [ { url, br, size, type, ... } ] }
         const levels = [
-            { level: 'standard', tag: 'MP3', name: '标准音质', br: 'standard' },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质', br: 'exhigh' },
-            { level: 'lossless', tag: 'FLAC', name: '无损音质', br: 'lossless' },
-            { level: 'hires', tag: 'Hi-Res', name: '高清无损', br: 'hires' },
-            { level: 'jyeffect', tag: 'Master', name: '超清母带', br: 'jymaster' }
+            { level: 'standard', tag: 'MP3', name: '鏍囧噯闊宠川', br: 'standard' },
+            { level: 'exhigh', tag: 'MP3', name: '鏋侀珮闊宠川', br: 'exhigh' },
+            { level: 'lossless', tag: 'FLAC', name: '鏃犳崯闊宠川', br: 'lossless' },
+            { level: 'hires', tag: 'Hi-Res', name: '楂樻竻鏃犳崯', br: 'hires' },
+            { level: 'jyeffect', tag: 'Master', name: '瓒呮竻姣嶅甫', br: 'jymaster' }
         ];
 
         const checkPromises = levels.map(async (q) => {
@@ -1896,7 +1896,7 @@ class QualityDetector {
                         } catch (e) { }
                     }
 
-                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '未知大小';
+                    const sizeMB = size ? (size / 1024 / 1024).toFixed(2) + 'MB' : '鏈煡澶у皬';
                     return { ...q, available: true, url: actualUrl, urlKey: actualUrl.split('?')[0], size: size, sizeStr: sizeMB };
                 }
                 return null;
@@ -1913,13 +1913,13 @@ class QualityDetector {
         for (const r of validResults) {
             if (urlMap.has(r.urlKey)) continue;
             if (r.size && r.size > 0 && sizeMap.has(r.size)) {
-                console.log(`❌ [QualityDetector] 虚假音质 (已过滤 direct): [${r.level}] 大小(${r.sizeStr}) 相同`);
+                console.info(`鉂?[QualityDetector] 铏氬亣闊宠川 (宸茶繃婊?direct): [${r.level}] 澶у皬(${r.sizeStr}) 鐩稿悓`);
                 continue;
             }
             urlMap.set(r.urlKey, r);
             if (r.size > 0) sizeMap.set(r.size, r);
             unique.push(r);
-            console.log(`✅ [QualityDetector] direct 有效: [${r.level}] ${r.name} - ${r.sizeStr} (Size: ${r.size})`);
+            console.info(`鉁?[QualityDetector] direct 鏈夋晥: [${r.level}] ${r.name} - ${r.sizeStr} (Size: ${r.size})`);
         }
 
         unique.sort((a, b) => {
@@ -1963,14 +1963,14 @@ class QualityDetector {
     getDefaultQualities(source) {
         if (source === 'netease' || source === 'netease_album') {
             return [
-                { level: 'standard', tag: 'MP3', name: '标准音质', available: true },
-                { level: 'exhigh', tag: 'MP3', name: '极高音质', available: true },
-                { level: 'lossless', tag: 'FLAC', name: '无损音质', available: true }
+                { level: 'standard', tag: 'MP3', name: '鏍囧噯闊宠川', available: true },
+                { level: 'exhigh', tag: 'MP3', name: '鏋侀珮闊宠川', available: true },
+                { level: 'lossless', tag: 'FLAC', name: '鏃犳崯闊宠川', available: true }
             ];
         }
         return [
-            { level: 'standard', tag: 'MP3', name: '标准音质', available: true },
-            { level: 'exhigh', tag: 'MP3', name: '极高音质', available: true }
+            { level: 'standard', tag: 'MP3', name: '鏍囧噯闊宠川', available: true },
+            { level: 'exhigh', tag: 'MP3', name: '鏋侀珮闊宠川', available: true }
         ];
     }
 
@@ -1979,6 +1979,6 @@ class QualityDetector {
     }
 }
 
-// 创建全局实例
+// 鍒涘缓鍏ㄥ眬瀹炰緥
 const qualityDetector = new QualityDetector();
 window.qualityDetector = qualityDetector; // Explicitly expose to window
