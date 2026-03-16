@@ -171,6 +171,9 @@ async function req(url, options = {}) {
     }
 }
 
+// 显式导出以防止混淆
+window.req = req;
+
 // API 交互逻辑
 
 async function smartMatchNetease(name, artist) {
@@ -1000,6 +1003,17 @@ async function fetchAndDownload(btn, level, tag) {
         setTimeout(() => { btn.innerHTML = originalText; }, 1500);
     }
 }
+
+// 显式导出以防止混淆导致外部调用失败
+window.loadSheet = loadSheet;
+window.doSearch = doSearch;
+window.smartMatchNetease = smartMatchNetease;
+window.loadToplists = loadToplists;
+window.loadArtistList = loadArtistList;
+window.loadArtistDetail = loadArtistDetail;
+window.loadAlbumDetail = loadAlbumDetail;
+window.fetchAndDownload = fetchAndDownload;
+window.loadLrc = loadLrc;
 // 音质检测器模块
 
 class QualityDetector {
