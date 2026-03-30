@@ -5753,7 +5753,7 @@
             
             if (CF_HTTPS_PORTS.includes(port)) {
                 
-                const wsNodeName = `${nodeName}}`;
+                const wsNodeName = `${nodeName}`;
                 let link = `${atob('dHJvamFuOi8v')}${password}@${item.ip}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
                 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
