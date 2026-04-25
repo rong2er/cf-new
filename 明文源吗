@@ -1810,7 +1810,7 @@
 
             for (const { port, tls } of portsToGenerate) {
                 const suffix = tls ? '-WS-TLS' : '-WS';
-                const nodeName = `${nodeNameBase}-${port}${suffix}`;
+                const nodeName = nodeNameBase;
                 let wsNodeName;
                 if (skipNumbering) {
                     wsNodeName = nodeName;           // 不编号
@@ -1833,7 +1833,7 @@
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                         const echDomain = customECHDomain || 'cloudflare-ech.com';
-                        wsParams.set('alpn', 'h3');
+                        wsParams.set('alpn', 'h3,h2,http/1.1');
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     }
 
@@ -1897,7 +1897,7 @@
 
             for (const { port, tls } of portsToGenerate) {
                 const suffix = tls ? `-${atob('VHJvamFu')}-WS-TLS` : `-${atob('VHJvamFu')}-WS`;
-                const nodeName = `${nodeNameBase}-${port}${suffix}`;
+                const nodeName = nodeNameBase;
                 let wsNodeName;
                 if (skipNumbering) {
                     wsNodeName = nodeName;           // 不编号
@@ -1919,7 +1919,7 @@
                     if (enableECH) {
                         const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                         const echDomain = customECHDomain || 'cloudflare-ech.com';
-                        wsParams.set('alpn', 'h3');
+                        wsParams.set('alpn', 'h3,h2,http/1.1');
                         wsParams.set('ech', `${echDomain}+${dnsServer}`);
                     }
 
@@ -5667,7 +5667,7 @@
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
 
             const getNodeName = (suffix) => {
-                const nodeName = `${nodeNameBase}-${port}${suffix}`;
+                const nodeName = nodeNameBase;
                 if (skipNumbering) return nodeName;
                 return namer(nodeNameBase, nodeName);
             };
@@ -5681,7 +5681,7 @@
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    link += `&alpn=h3,h2,http/1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                 }
 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5702,7 +5702,7 @@
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    link += `&alpn=h3,h2,http/1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                 }
 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5727,7 +5727,7 @@
             const port = item.port || 443;
 
             const getNodeName = (suffix) => {
-                const nodeName = `${nodeNameBase}-${port}${suffix}`;
+                const nodeName = nodeNameBase;
                 if (skipNumbering) return nodeName;
                 return namer(nodeNameBase, nodeName);
             };
@@ -5749,7 +5749,7 @@
             if (enableECH) {
                 const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                 const echDomain = customECHDomain || 'cloudflare-ech.com';
-                params.set('alpn', 'h3,h2');
+                params.set('alpn', 'h3,h2,http/1.1');
                 params.set('ech', `${echDomain}+${dnsServer}`);
             }
 
@@ -5775,7 +5775,7 @@
             const safeIP = item.ip.includes(':') ? `[${item.ip}]` : item.ip;
 
             const getNodeName = (suffix) => {
-                const nodeName = `${nodeNameBase}-${port}${suffix}`;
+                const nodeName = nodeNameBase;
                 if (skipNumbering) return nodeName;
                 return namer(nodeNameBase, nodeName);
             };
@@ -5789,7 +5789,7 @@
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    link += `&alpn=h3,h2,http/1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                 }
 
                 link += `#${encodeURIComponent(wsNodeName)}`;
@@ -5810,7 +5810,7 @@
                 if (enableECH) {
                     const dnsServer = customDNS || 'https://223.5.5.5/dns-query';
                     const echDomain = customECHDomain || 'cloudflare-ech.com';
-                    link += `&alpn=h3&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
+                    link += `&alpn=h3,h2,http/1.1&ech=${encodeURIComponent(`${echDomain}+${dnsServer}`)}`;
                 }
                 link += `#${encodeURIComponent(wsNodeName)}`;
                 links.push(link);
