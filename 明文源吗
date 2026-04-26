@@ -1275,7 +1275,7 @@
 
                 const tls = params.get('security') === 'tls' || params.get('tls') === 'true';
                 const network = params.get('type') || 'ws';
-                const path = params.get('path') || '/?ed=2048';
+                const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const servername = params.get('sni') || host;
                 const alpn = params.get('alpn') || 'h3';
@@ -1329,7 +1329,7 @@
                 const params = new URLSearchParams(url.search);
 
                 const network = params.get('type') || 'ws';
-                const path = params.get('path') || '/?ed=2048';
+                const path = params.get('path') || '/?ed=2560';
                 const host = params.get('host') || server;
                 const sni = params.get('sni') || host;
                 const alpn = params.get('alpn') || 'h3';
@@ -1712,7 +1712,7 @@
         if (finalLinks.length === 0) {
             const errorRemark = "所有节点获取失败";
             const proto = atob('dmxlc3M=');
-            const errorLink = `${proto}://00000000-0000-0000-0000-000000000000@127.0.0.1:80?encryption=none&security=none&type=ws&host=error.com&path=%2F%3Fed%3D2048#${encodeURIComponent(errorRemark)}`;
+            const errorLink = `${proto}://00000000-0000-0000-0000-000000000000@127.0.0.1:80?encryption=none&security=none&type=ws&host=error.com&path=%2F%3Fed%3D2560#${encodeURIComponent(errorRemark)}`;
             finalLinks.push(errorLink);
         }
 
@@ -1775,7 +1775,7 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         const proto = atob('dmxlc3M=');
 
         const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
@@ -1861,7 +1861,7 @@
         const defaultHttpsPorts = [443];
         const defaultHttpPorts = disableNonTLS ? [] : [80];
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
 
         const password = tp || user;
 
@@ -5656,7 +5656,7 @@
         const CF_HTTP_PORTS = [80, 8080, 8880, 2052, 2082, 2086, 2095];
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
         const proto = atob('dmxlc3M=');
 
         const { namer, setSkipNumbering } = createNodeNamer(skipNumbering);
@@ -5763,7 +5763,7 @@
         const CF_HTTPS_PORTS = [443, 2053, 2083, 2087, 2096, 8443];
 
         const links = [];
-        const wsPath = '/?ed=2048';
+        const wsPath = '/?ed=2560';
 
         const password = tp || user;
 
