@@ -1712,7 +1712,7 @@
         if (finalLinks.length === 0) {
             const errorRemark = "所有节点获取失败";
             const proto = atob('dmxlc3M=');
-            const errorLink = `${proto}://00000000-0000-0000-0000-000000000000@127.0.0.1:80?encryption=none&security=none&type=ws&host=error.com&path=%2F#${encodeURIComponent(errorRemark)}`;
+            const errorLink = `${proto}://00000000-0000-0000-0000-000000000000@127.0.0.1:80?encryption=none&security=none&type=ws&host=error.com&path=%2F%3Fed%3D2048#${encodeURIComponent(errorRemark)}`;
             finalLinks.push(errorLink);
         }
 
