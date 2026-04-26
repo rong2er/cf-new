@@ -5675,7 +5675,7 @@
             if (CF_HTTPS_PORTS.includes(port)) {
                 const suffix = '-WS-TLS';
                 const wsNodeName = getNodeName(suffix);
-                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
+                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${encodeURIComponent(wsPath)}`;
 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
@@ -5690,13 +5690,13 @@
                 if (!disableNonTLS) {
                     const suffix = '-WS';
                     const wsNodeName = getNodeName(suffix);
-                    const link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=none&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
+                    const link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=none&type=ws&host=${workerDomain}&path=${encodeURIComponent(wsPath)}#${encodeURIComponent(wsNodeName)}`;
                     links.push(link);
                 }
             } else {
                 const suffix = '-WS-TLS';
                 const wsNodeName = getNodeName(suffix);
-                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${wsPath}`;
+                let link = `${proto}://${user}@${safeIP}:${port}?encryption=none&security=tls&sni=${workerDomain}&fp=${enableECH ? 'chrome' : 'randomized'}&type=ws&host=${workerDomain}&path=${encodeURIComponent(wsPath)}`;
 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
@@ -5783,7 +5783,7 @@
             if (CF_HTTPS_PORTS.includes(port)) {
                 const suffix = `-${atob('VHJvamFu')}-WS-TLS`;
                 const wsNodeName = getNodeName(suffix);
-                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
+                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${encodeURIComponent(wsPath)}`;
 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
@@ -5798,13 +5798,13 @@
                 if (!disableNonTLS) {
                     const suffix = `-${atob('VHJvamFu')}-WS`;
                     const wsNodeName = getNodeName(suffix);
-                    const link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=none&type=ws&host=${workerDomain}&path=${wsPath}#${encodeURIComponent(wsNodeName)}`;
+                    const link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=none&type=ws&host=${workerDomain}&path=${encodeURIComponent(wsPath)}#${encodeURIComponent(wsNodeName)}`;
                     links.push(link);
                 }
             } else {
                 const suffix = `-${atob('VHJvamFu')}-WS-TLS`;
                 const wsNodeName = getNodeName(suffix);
-                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${wsPath}`;
+                let link = `${atob('dHJvamFuOi8v')}${password}@${safeIP}:${port}?security=tls&sni=${workerDomain}&fp=chrome&type=ws&host=${workerDomain}&path=${encodeURIComponent(wsPath)}`;
 
                 // 如果启用了ECH，添加ech参数（ECH需要伪装成Chrome浏览器）
                 if (enableECH) {
